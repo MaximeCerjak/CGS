@@ -38,6 +38,17 @@
 - Le jeu ne prend pas parti sur les combats de coqs (comparables au MMA ou aux gladiateurs). Certains personnages sont pour, d'autres contre.
 - Une histoire sérieuse (pauvreté, inégalités) avec un côté déjanté et de l'humour noir. Le restaurant de poulet frit est volontairement ironique.
 - Les combats sont légaux, mais le milieu est fréquenté par des malfrats.
+- La société du jeu est montrée telle qu'elle est, sans jugement : des malfrats qui font des affaires en douce (travail au noir, trafics), et des gens honnêtes qui subissent les inégalités ou saisissent des occasions sans tremper dans les magouilles.
+- Piste : à côté des combats légaux existe un réseau de combats clandestins avec d'autres règles. Par exemple, les équipements ou les coqs « cyborgs » seraient interdits dans les combats légaux et autorisés dans les combats clandestins.
+
+### Histoire
+- **Le héros au début** : un jeune comme les autres, qui se cherche et ne sait pas quoi faire de sa vie. Il enchaîne les petits boulots et les trafics, et passe le reste de son temps à parier et à jouer de l'argent dans l'espoir de se sortir de sa situation.
+- **Deux fins**, sans bonne ni mauvaise fin :
+  - le héros prend la direction des arènes et des malfrats (diriger les malfrats peut aussi permettre d'aider son quartier) ;
+  - le héros met sa réussite au service des siens et de son quartier, loin des malfrats.
+- Axe des deux fins : devenir celui qui gère le jeu (le gérant des arènes), ou se lever de la table pour construire autre chose avec ses gains.
+- **La fin découle des choix accumulés** pendant la partie, pas d'une décision finale. Plus le joueur trempe dans les magouilles, plus il se rapproche de la direction des malfrats. Plus il reste honnête et passe par des voies classiques pour acquérir des biens et une réputation, plus il se rapproche de l'autre fin.
+- Rejouabilité : deux fins différentes pour commencer. Continuer à jouer après la fin reste une extension possible.
 
 ### Duel
 - Au tour par tour, comme Pokémon (menus, sans placement). L'interface sera à retravailler pour ne pas faire une pâle copie.
@@ -145,6 +156,7 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - Une boussole possible pour l'humour : la famille reste sincère, c'est le monde autour d'elle qui est grotesque.
 - Deux horloges : celle de la carrière (le joueur la fait avancer à son rythme) et celle de la vie (les dilemmes arrivent qu'on soit prêt ou non). La difficulté naît de l'écart entre les deux.
 - Mettre la pression et utiliser une attaque peu fiable relèvent de la même logique : un risque choisi.
+- Le héros est déjà un parieur : le combat de coqs est le même pari, avec un être vivant comme mise. Le choix de continuer ou d'abandonner met son défaut de caractère entre les mains du joueur. Thème possible : le rapport au risque.
 - Le confort (à la maison) et le soutien (dans l'arène) passent tous les deux par l'état d'esprit.
 - Les maladies dues à un poulailler surpeuplé donnent un prix naturel à une grande écurie.
 - Les prothèses pourraient devenir les améliorations scientifiques : elles naîtraient d'une blessure et d'un dilemme.
