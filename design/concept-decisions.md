@@ -66,6 +66,25 @@
 - Axe des deux fins : devenir celui qui gère le jeu (le gérant des arènes), ou se lever de la table pour construire autre chose avec ses gains.
 - **La fin découle des choix accumulés** pendant la partie, pas d'une décision finale. Plus le joueur trempe dans les magouilles, plus il se rapproche de la direction des malfrats. Plus il reste honnête et passe par des voies classiques pour acquérir des biens et une réputation, plus il se rapproche de l'autre fin.
 - Rejouabilité : deux fins différentes pour commencer. Continuer à jouer après la fin reste une extension possible.
+- **Le genre du personnage** : le joueur choisit de jouer un garçon ou une fille. Tous les dialogues sont adaptés en conséquence.
+
+### Le père
+- Le père est mort. Il ne réapparaît pas.
+- Il a d'abord eu une première famille, dont un fils. Il l'a abandonnée pour venir vivre avec la mère du héros, avec qui il a eu trois enfants, dont le héros. Puis il a trompé la mère, il est parti, on ne l'a plus jamais revu, et il est mort loin de la famille.
+- La mère ne sait pas que le père avait un fils avant eux.
+
+### Le demi-frère : la connaissance qui initie le héros
+- La connaissance qui propose les combats de coqs au héros est le premier fils du père, donc son demi-frère. Ils se connaissent par les paris.
+- C'est un faux gentil, guidé par la vengeance : il tient la famille du héros pour responsable de son propre malheur et veut la voir tomber. Ses conseils poussent discrètement vers le clandestin, les gros paris et les dettes.
+- Il devient aussi un rival récurrent dans l'arène, avec ses propres coqs.
+- Deux révélations séparées :
+  - le joueur découvre que c'est un faux gentil assez tôt, dans la première partie du jeu (premier tiers, ou au plus tard première moitié) ;
+  - il découvre que c'est son demi-frère seulement vers la phase finale.
+- Après la révélation du lien de sang, la relation peut prendre différentes directions.
+
+### Le contact entre les deux milieux
+- Un personnage distinct du demi-frère, qui connaît le milieu légal et le milieu clandestin.
+- Au détour d'une discussion, il peut prévenir le joueur qu'il prend des risques qui pourraient lui coûter cher. C'est l'une des façons dont le joueur perçoit sa réputation.
 
 ### Duel
 - Au tour par tour, comme Pokémon (menus, sans placement). L'interface sera à retravailler pour ne pas faire une pâle copie.
@@ -164,7 +183,8 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - Les améliorations scientifiques : intéressantes ou superficielles ? À réfléchir.
 - La forme exacte de l'entraînement au-delà du duo (ce qu'on choisit d'améliorer, les attaques apprises).
 - La durée fixe d'un duel : 1 heure ou 2 heures de jeu ?
-- La place du père dans le récit.
+- Les directions possibles de la relation avec le demi-frère après la révélation (confrontation, réconciliation, autre), et sa place dans chacune des deux fins.
+- Le moment exact où le joueur découvre la trahison du demi-frère : premier tiers ou première moitié ?
 - Le scénario sans embranchements de la première phase.
 
 ## Observations de Claude (non validées)
@@ -176,6 +196,10 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - Le choix du circuit est un choix moral fait par la mécanique : pas besoin de compteur caché d'honnêteté.
 - Si une prothèse compte comme une modification « cyborg », un joueur honnête dont le coq perd une aile ne peut que soigner avec séquelle : la blessure devient une tentation qui pousse vers le clandestin.
 - La prison n'a pas besoin de pénalité inventée : le calendrier continue (charges, enfants qui grandissent, délais des dilemmes, poulailler à nourrir).
+- Le demi-frère et le héros portent la même blessure : tous deux ont été abandonnés par le même père. Le demi-frère se venge sur des gens qui ont subi la même chose que lui. La révélation finale fait de l'ennemi un miroir, compréhensible sans être excusé.
+- Révéler tôt la trahison remplace la question « peut-on lui faire confiance ? » par « pourquoi m'en veut-il ? », qui peut porter l'histoire jusqu'à la phase finale. Il faudra placer des indices pour que la révélation soit surprenante mais juste.
+- Le faux gentil doit vraiment aider de temps en temps, sinon le joueur devine sa trahison dès la première scène.
+- Le duo de personnages : celui en qui on a confiance à tort (le demi-frère) et celui qui dit des vérités qu'on n'a pas forcément envie d'entendre (le contact).
 - Le héros est déjà un parieur : le combat de coqs est le même pari, avec un être vivant comme mise. Le choix de continuer ou d'abandonner met son défaut de caractère entre les mains du joueur. Thème possible : le rapport au risque.
 - Le confort (à la maison) et le soutien (dans l'arène) passent tous les deux par l'état d'esprit.
 - Les maladies dues à un poulailler surpeuplé donnent un prix naturel à une grande écurie.
