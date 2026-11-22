@@ -14,15 +14,17 @@
   - les embranchements du scénario (on commence par un scénario sans embranchements, puis on ajoute des branches petit à petit) ;
   - les croisements d'espèces (coq d'une espèce avec une poule d'une autre) ;
   - l'héritage des stats d'un parent entraîné et puissant ;
-  - les blessures définitives et les prothèses.
+  - les blessures définitives et les prothèses ;
+  - l'essentiel du contenu exclusif à chaque circuit (lieux, personnages, événements). La première phase en contient peu, on en ajoute ensuite.
 
 ## Prototype
-- **Question à laquelle il répond** : les duels sont-ils prenants, et le choix entre continuer et abandonner crée-t-il de la tension ?
+- **Question à laquelle il répond** : les duels sont-ils prenants, et le choix entre continuer et abandonner crée-t-il de la tension, sous deux niveaux de risque (règles légales et règles clandestines) ?
 - **Contenu** :
   - 2 ou 3 coqs avec des stats fixes, sans élevage ni entraînement ;
   - une suite de 5 à 8 duels de difficulté croissante ;
   - un seul compteur d'argent et une seule échéance (par exemple un loyer à payer avant le duel 6) ;
-  - la mort définitive et les blessures qui durent.
+  - la mort définitive et les blessures qui durent ;
+  - deux règles de combat : légales (un arbitre arrête le combat avant la mort, abandon toujours permis, gains plus faibles) et clandestines (combat jusqu'à la mort, abandon refusé ou très coûteux, gains bien plus élevés).
 - **Hors prototype** : horloge, famille, voyages, élevage, entraînement, équipement.
 - Les systèmes dont dépend le combat (argent, stats) sont simulés au strict minimum.
 - Une fois le prototype validé, on développe un MVP plus complet, à faire tester par des connaissances. Il devra être compréhensible sans explication (interface claire, tutoriel minimal).
@@ -39,7 +41,22 @@
 - Une histoire sérieuse (pauvreté, inégalités) avec un côté déjanté et de l'humour noir. Le restaurant de poulet frit est volontairement ironique.
 - Les combats sont légaux, mais le milieu est fréquenté par des malfrats.
 - La société du jeu est montrée telle qu'elle est, sans jugement : des malfrats qui font des affaires en douce (travail au noir, trafics), et des gens honnêtes qui subissent les inégalités ou saisissent des occasions sans tremper dans les magouilles.
-- Piste : à côté des combats légaux existe un réseau de combats clandestins avec d'autres règles. Par exemple, les équipements ou les coqs « cyborgs » seraient interdits dans les combats légaux et autorisés dans les combats clandestins.
+
+### Deux circuits : légal et clandestin
+- À côté des combats légaux existe un réseau de combats clandestins avec d'autres règles.
+- Les équipements (armes, protections) sont autorisés dans les deux circuits. Les coqs cyborgs et les expériences scientifiques sont interdits dans le circuit légal et autorisés dans le circuit clandestin.
+- Les deux voies diffèrent sur quatre plans :
+  1. **Les règles du combat.** Légal : un arbitre arrête le combat avant la mort, abandonner est toujours permis, des soins sont assurés sur place, les gains sont plus faibles. Clandestin : combats jusqu'à la mort, abandon refusé ou très coûteux, gains bien plus élevés.
+  2. **La forme des revenus.** Légal : sponsors, contrats, revenu stable, peut-être l'accès au crédit. Clandestin : gros paris, primes, argent rapide mais irrégulier, dettes possibles envers les mauvaises personnes.
+  3. **Les portes qui s'ouvrent et se ferment.** Légal : tournois officiels, villes, éleveurs respectables, ligues prestigieuses. Clandestin : marché noir (coqs rares, matériel interdit, médicaments moins chers mais douteux), lieux cachés, faveurs. La première phase contient peu de contenu exclusif ; on en ajoute ensuite.
+  4. **Le regard de la famille.** Légal : une réussite qu'on peut montrer, dont la mère peut être fière et dont le frère peut s'inspirer sans danger. Clandestin : il faut cacher, la relation en pâtit, et les malfrats peuvent un jour menacer la famille.
+
+### Réputation dans les deux milieux
+- On peut fréquenter les deux circuits, mais trop tremper dans la clandestinité finit par se savoir, et des portes se ferment côté légal. Ça marche dans les deux sens : un joueur trop honnête voit aussi des portes se fermer côté clandestin.
+- On n'est jamais bloqué définitivement d'un côté. Il y a toujours un moyen de changer de chemin :
+  - pour revenir au légal : payer une grosse amende, ou faire un séjour en prison pendant lequel les charges continuent de tomber ;
+  - pour revenir au clandestin : rendre un petit service à quelqu'un pour accéder à de nouveaux contacts et lieux, puis un autre service, ou accepter un combat truqué.
+- Le joueur perçoit sa réputation par des signes à lire : des rumeurs, et un contact qui connaît les deux milieux et peut le prévenir, au détour d'une discussion, qu'il prend des risques qui pourraient lui coûter cher.
 
 ### Histoire
 - **Le héros au début** : un jeune comme les autres, qui se cherche et ne sait pas quoi faire de sa vie. Il enchaîne les petits boulots et les trafics, et passe le reste de son temps à parier et à jouer de l'argent dans l'espoir de se sortir de sa situation.
@@ -156,6 +173,9 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - Une boussole possible pour l'humour : la famille reste sincère, c'est le monde autour d'elle qui est grotesque.
 - Deux horloges : celle de la carrière (le joueur la fait avancer à son rythme) et celle de la vie (les dilemmes arrivent qu'on soit prêt ou non). La difficulté naît de l'écart entre les deux.
 - Mettre la pression et utiliser une attaque peu fiable relèvent de la même logique : un risque choisi.
+- Le choix du circuit est un choix moral fait par la mécanique : pas besoin de compteur caché d'honnêteté.
+- Si une prothèse compte comme une modification « cyborg », un joueur honnête dont le coq perd une aile ne peut que soigner avec séquelle : la blessure devient une tentation qui pousse vers le clandestin.
+- La prison n'a pas besoin de pénalité inventée : le calendrier continue (charges, enfants qui grandissent, délais des dilemmes, poulailler à nourrir).
 - Le héros est déjà un parieur : le combat de coqs est le même pari, avec un être vivant comme mise. Le choix de continuer ou d'abandonner met son défaut de caractère entre les mains du joueur. Thème possible : le rapport au risque.
 - Le confort (à la maison) et le soutien (dans l'arène) passent tous les deux par l'état d'esprit.
 - Les maladies dues à un poulailler surpeuplé donnent un prix naturel à une grande écurie.
