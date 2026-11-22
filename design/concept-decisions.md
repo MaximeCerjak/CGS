@@ -8,6 +8,14 @@
 - Déclencheur : une connaissance propose au héros de participer à des combats de coqs.
 - Ce qui donne envie de jouer : gérer son écurie, personnaliser l'apparence et les stats des coqs, vivre les duels, suivre une histoire qui a du sens.
 
+## Phases de développement
+- **Première phase** : tout ce qui est décrit dans ce document, sauf ce qui est explicitement repoussé ci-dessous.
+- **Repoussé à une phase ultérieure** :
+  - les embranchements du scénario (on commence par un scénario sans embranchements, puis on ajoute des branches petit à petit) ;
+  - les croisements d'espèces (coq d'une espèce avec une poule d'une autre) ;
+  - l'héritage des stats d'un parent entraîné et puissant ;
+  - les blessures définitives et les prothèses.
+
 ## Décisions
 
 ### Ton et position du jeu
@@ -39,6 +47,9 @@
 - On ne garde que l'expérience d'entraîneur, qui accélère l'entraînement sur les premiers paliers et améliore la lecture du combat.
 - Le moment clé : tenter le coup au risque de perdre son coq, ou abandonner. Abandonner fait perdre de l'argent sans en gagner.
 - Les blessures durent après le combat. Un coq blessé ne peut pas se relancer tout de suite : il faut des soins, du temps et de l'argent.
+- **Phase ultérieure** : des blessures définitives, avec un malus permanent sur les stats. Deux choix :
+  - soigner : le coq est stabilisé mais garde une séquelle (malus définitif) ;
+  - poser une prothèse, si on en a les moyens. La prothèse est un compromis, pas une amélioration pure : elle augmente certaines stats et en diminue d'autres (exemple : une aile d'acier fait perdre en vitesse et gagner en attaque).
 
 ### Se relever d'une perte
 - Revendre des possessions pour retourner vite dans des combats qui rapportent.
@@ -52,9 +63,33 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - **Difficile** : sauvegarde automatique à la fin de chaque combat, sans possibilité de recharger.
 - L'équilibrage se fait pour le mode difficile.
 
-### Élevage
+### Élevage : logement et alimentation
+- Le poulailler est un bâtiment dont on peut améliorer la qualité et la structure.
+- L'alimentation existe en plusieurs niveaux de qualité.
+- Le logement et l'alimentation forment le confort du coq. Le confort agit sur sa force mentale : plus un coq a de confort, plus son état d'esprit reste positif et combatif longtemps pendant un combat ; moins il en a, plus vite il faiblit mentalement, puis en combat.
+
+### Soins
+- **Soins du quotidien** : prévenir les maladies. Trop de volailles dans un bâtiment trop petit favorise les maladies, qu'il faut traiter (vaccins, antibiotiques, etc.).
+- **Soins après un combat** : bandages, sutures, etc.
+
+### Entraînement
+- Une zone d'entraînement dans le poulailler accueille deux coqs, qui s'affrontent pendant un certain temps de jeu.
+- À la fin, leur jauge d'entraînement est remplie : on peut modifier des stats, ou leur faire apprendre une nouvelle attaque, selon le cas.
+- Le choix du partenaire compte :
+  - un coq faible avec un coq fort : gains plus élevés, risque de blessure plus élevé ;
+  - deux coqs de niveau proche : gains moindres, risque de blessure moindre.
+- Le matériel d'entraînement compte aussi. Il s'améliore avec les améliorations du poulailler et de sa zone d'entraînement.
+- Un entraînement peut blesser un coq, qu'il faut alors soigner.
+
+### Armes et protections
+- Équipements par partie du corps : griffes, bec, casque, crocs, etc.
+- Plusieurs matériaux possibles (acier et autres).
+
+### Reproduction et héritage
 - Le poulailler produit des œufs. Une partie donne des mâles, une partie des femelles.
 - Les mâles conservés peuvent devenir des coqs de combat : œuf, puis poussin, puis coq mature prêt à combattre, chaque étape prenant un certain nombre de jours de jeu.
+- Le poussin hérite de l'espèce de son père, et donc des stats par défaut de cette espèce.
+- **Phase ultérieure** : croisements entre l'espèce du coq et celle de la poule, puis héritage des stats d'un père entraîné et devenu très puissant.
 
 ### Temps
 - Une horloge et un calendrier avancent pendant qu'on joue.
@@ -72,6 +107,7 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - Les dilemmes fonctionnent comme des quêtes : une date limite claire, notée dans le journal de quêtes. Les personnages en parlent (« Alors, tu as assez pour mes études ? ») et sont plus ou moins pressés.
 - Un dilemme peut attendre (la sœur peut reporter ses études d'un, deux ou cinq ans), dans une certaine limite au-delà de laquelle il n'est plus résolvable. Certains délais sont très courts, d'autres très longs.
 - Contrairement au score relationnel, les délais des dilemmes sont visibles et clairs.
+- Quand le délai est dépassé, le personnage décide de lui-même. Exemples pour la sœur : un autre parcours, trouver un travail, des études moins chères, autre chose que des études, ou quitter la maison et en vouloir au héros. Les issues seront définies dans les branches du scénario.
 
 ### Monde et structure
 - On se déplace au-delà du quartier : autres villes, un éleveur d'une espèce rare, la montagne pour attraper un coq sauvage introuvable ailleurs. Des personnages, des défis, des conseils, des embrouilles, des propositions.
@@ -81,12 +117,11 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - Des chapitres existent mais ne sont pas affichés. Comme dans Pokémon, des conditions débloquent de nouveaux accès et événements : conditions d'histoire, de niveau, d'argent, et de temps écoulé (âge des personnages).
 
 ## Questions ouvertes
-- Des blessures définitives, avec un coq diminué pour le reste de sa vie ? Choix à réfléchir, pas anodin.
+- Les améliorations scientifiques : intéressantes ou superficielles ? À réfléchir.
+- La forme exacte de l'entraînement au-delà du duo (ce qu'on choisit d'améliorer, les attaques apprises).
 - La durée fixe d'un duel : 1 heure ou 2 heures de jeu ?
-- Quand le délai d'un dilemme est dépassé : le personnage prend-il de lui-même un autre chemin ?
-- Combien de trajectoires familiales seront réellement produites (risque sur la taille du projet).
 - La place du père dans le récit.
-- Les pistes pas encore discutées : alimentation, logement, soins, entraînement, spécialisation, armes, protections, améliorations scientifiques.
+- Le scénario sans embranchements de la première phase.
 
 ## Observations de Claude (non validées)
 - Le service demandé par la sœur et l'abandon d'un duel ont la même structure : choisir ce qu'on sacrifie. Ce pourrait être un pilier du jeu.
@@ -94,3 +129,10 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - Une boussole possible pour l'humour : la famille reste sincère, c'est le monde autour d'elle qui est grotesque.
 - Deux horloges : celle de la carrière (le joueur la fait avancer à son rythme) et celle de la vie (les dilemmes arrivent qu'on soit prêt ou non). La difficulté naît de l'écart entre les deux.
 - Mettre la pression et utiliser une attaque peu fiable relèvent de la même logique : un risque choisi.
+- Le confort (à la maison) et le soutien (dans l'arène) passent tous les deux par l'état d'esprit.
+- Les maladies dues à un poulailler surpeuplé donnent un prix naturel à une grande écurie.
+- Les prothèses pourraient devenir les améliorations scientifiques : elles naîtraient d'une blessure et d'un dilemme.
+- Le nombre de places d'entraînement pourrait dépendre de la qualité du bâtiment.
+- Si les stats se transmettent un jour, un coq puissant qui meurt laisse quelque chose à travers ses descendants.
+- Coût de production : armes, protections, prothèses et espèces visibles sur le sprite multiplient les combinaisons à dessiner.
+- Même la version sans embranchements doit contenir des dilemmes avec délai, et la structure technique doit prévoir dès le départ le journal, le score relationnel et la mémoire des choix.
