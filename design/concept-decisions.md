@@ -16,6 +16,22 @@
   - l'héritage des stats d'un parent entraîné et puissant ;
   - les blessures définitives et les prothèses.
 
+## Prototype
+- **Question à laquelle il répond** : les duels sont-ils prenants, et le choix entre continuer et abandonner crée-t-il de la tension ?
+- **Contenu** :
+  - 2 ou 3 coqs avec des stats fixes, sans élevage ni entraînement ;
+  - une suite de 5 à 8 duels de difficulté croissante ;
+  - un seul compteur d'argent et une seule échéance (par exemple un loyer à payer avant le duel 6) ;
+  - la mort définitive et les blessures qui durent.
+- **Hors prototype** : horloge, famille, voyages, élevage, entraînement, équipement.
+- Les systèmes dont dépend le combat (argent, stats) sont simulés au strict minimum.
+- Une fois le prototype validé, on développe un MVP plus complet, à faire tester par des connaissances. Il devra être compréhensible sans explication (interface claire, tutoriel minimal).
+
+## Organisation des branches
+- Le prototype est développé sur une branche dédiée.
+- Le MVP est développé sur une branche dédiée.
+- Le projet complet vit sur la branche de recette et sur la branche principale.
+
 ## Décisions
 
 ### Ton et position du jeu
