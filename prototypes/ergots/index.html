@@ -16,6 +16,7 @@
 <body>
 <canvas id="game"></canvas>
 <script src="config.js"></script>
+<script src="tune.js"></script>
 <script>
 'use strict';
 // Ergots — prototype de duels de coqs au tour par tour.
@@ -225,7 +226,49 @@ function drawRooster(look, x, y, px, face, pose = 'normal', wounds = 0) {
 function legalEntry(d) { return tune.legalEntryBase + tune.legalEntryPerDuel * d; }
 function legalPurse(d) { return tune.legalPurseBase + tune.legalPursePerDuel * d; }
 function entryFor(d, circuit) { return Math.round(legalEntry(d) * (circuit === 'clan' ? tune.clanEntryMult : 1)); }
-function purseFor(d, circuit) { return Math.round(legalPurse(d) * (circuit === 'clan' ? tune.clanPurseMult : 1)); }
+function lerpDuel(a, b, d) { return tune.duels > 1 ? a + (b - a) * (d - 1) / (tune.duels - 1) : a; }
+function clanPurseMult(d) { return lerpDuel(tune.clanPurseMultStart, tune.clanPurseMultEnd, d); }
+function clanFoeMult(d) { return lerpDuel(tune.clanFoeMultStart, tune.clanFoeMultEnd, d); }
+function purseFor(d, circuit) { return Math.round(legalPurse(d) * (circuit === 'clan' ? clanPurseMult(d) : 1)); }
+function foeStats(d, circuit) { // l'adversaire du duel d, tel qu'il se présente dans ce circuit
+  const f = R.foes[(d - 1) % R.foes.length], m = circuit === 'clan' ? clanFoeMult(d) : 1;
+  return { src: f, hp: f.hp * m, atk: f.atk * m, def: f.def * m, spd: f.spd * m };
+}
+function foeTraits(fs) {
+  const t = [];
+  if (fs.spd >= 13) t.push('rapide'); else if (fs.spd <= 8.5) t.push('lent');
+  if (fs.atk >= 15) t.push('frappe fort');
+  if (fs.def >= 14) t.push('encaisse bien');
+  if (fs.hp >= 74) t.push('endurant');
+  return t.length ? t.join(' · ') : 'sans point fort marqué';
+}
+function matchup(c, fs) { // estimation, jamais de chiffres adverses
+  const s = c.src, out = [];
+  const ds = s.spd * injuryMult(c, 'spd') - fs.spd;
+  out.push(ds > 1.5 ? 'plus rapide' : ds < -1.5 ? 'plus lent' : 'aussi rapide');
+  const mine = s.atk * injuryMult(c, 'atk') / fs.def, his = fs.atk / (s.def * injuryMult(c, 'def'));
+  out.push(mine > his * 1.12 ? 'frappe plus fort' : his > mine * 1.12 ? 'subira plus' : 'à armes égales');
+  const dh = s.hp - fs.hp;
+  if (dh < -12) out.push('moins endurant'); else if (dh > 12) out.push('plus endurant');
+  return out.join(' · ');
+}
+// ---- Configurations d'équilibrage ----
+const PRESETS = window.PRESETS;
+const PRESET_IDS = Object.keys(PRESETS);
+function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('ergots:' + k)); localStorage.setItem('ergots:' + k, JSON.stringify(v)); } catch (e) { return null; } }
+function applyPreset(id) {
+  if (!PRESETS[id]) return;
+  for (const [k, v] of Object.entries(PRESETS[id].values)) if (CONFIG[k]) CONFIG[k].value = v;
+  CONFIG.preset.value = id; store('preset', id);
+  dispatchEvent(new CustomEvent('tune-refresh'));
+}
+addEventListener('tune', e => { if (e.detail && e.detail.key === 'preset') applyPreset(CONFIG.preset.value); });
+applyPreset(params.get('preset') || store('preset') || CONFIG.preset.value);
+function recordRun(win, why) {
+  const runs = store('runs') || [];
+  runs.unshift({ preset: CONFIG.preset.value, win, why, money: state.money, path: state.path.join(' '), deaths: state.deaths.length });
+  store('runs', runs.slice(0, 6));
+}
 function injuryMult(f, stat) { let m = 1; for (const i of f.injuries) if (R.injuries[i.id].stat === stat) m *= 1 - tune.injuryMalus; return m; }
 function moraleFactor(m) { return 1 - tune.moraleSpan / 2 + tune.moraleSpan * m / 100; }
 function mood(f) { return f.morale < tune.moraleScared ? 'scared' : f.morale < tune.moraleHesitant ? 'hesitant' : 'ok'; }
@@ -291,7 +334,7 @@ function reset() {
     t: 0, score: 0, gained: '',
     mode: 'yard', duelNo: 1, money: tune.startMoney, rentPaid: false,
     coqs: R.coqs.map(c => ({ src: c, dead: false, injuries: [], wins: 0 })),
-    sel: 0, circuit: 'legal', note: '', noteT: 0, duel: null, over: '', deaths: [],
+    sel: 0, circuit: 'legal', note: '', noteT: 0, duel: null, over: '', deaths: [], path: [],
   };
 }
 function alive() { return state.coqs.filter(c => !c.dead); }
@@ -305,7 +348,7 @@ function enterArena() {
   state.money -= entry;
   const foeSrc = R.foes[(state.duelNo - 1) % R.foes.length];
   const P = makeFighter(coq.src, 'p', 1, coq.injuries);
-  const E = makeFighter(foeSrc, 'e', state.circuit === 'clan' ? tune.clanFoeStatMult : 1, []);
+  const E = makeFighter(foeSrc, 'e', state.circuit === 'clan' ? clanFoeMult(state.duelNo) : 1, []);
   state.duel = {
     coq, P, E, circuit: state.circuit, entry, purse: purseFor(state.duelNo, state.circuit),
     phase: 'choose', move: 0, sup: 'none', beats: [], beatT: 0, log: [], result: null, resultText: '',
@@ -424,6 +467,7 @@ function finishDuel() {
   if (res === 'victoire') { state.money += d.purse; coq.wins++; sfx.coin(); }
   if (res === 'mort') { coq.dead = true; state.deaths.push(`${coq.src.name} (duel ${state.duelNo})`); }
   for (const c of state.coqs) if (c !== coq && !c.dead) { c.injuries.forEach(i => i.left--); c.injuries = c.injuries.filter(i => i.left > 0); }
+  state.path.push((d.circuit === 'clan' ? 'C' : 'L') + ':' + { victoire: 'V', arret: 'D', abandon: 'A', mort: 'M' }[res]);
   events.push({ type: 'result', no: state.duelNo, res });
   state.duel = null; state.mode = 'yard';
   state.duelNo++;
@@ -432,11 +476,11 @@ function finishDuel() {
     if (state.money >= tune.rent) { state.money -= tune.rent; state.rentPaid = true; say(`Loyer payé : ${tune.rent} crédits. Il te reste ${state.money}.`); sfx.coin(); }
     else return gameOver(`Le loyer tombe : ${tune.rent} crédits. Tu n’en as que ${state.money}. La famille est expulsée.`);
   }
-  if (state.duelNo > tune.duels) { state.gained = 'fin'; scene = 'results'; sfx.win(); return; }
+  if (state.duelNo > tune.duels) { state.gained = 'fin'; scene = 'results'; recordRun(true, 'gagné'); sfx.win(); return; }
   if (state.money < entryFor(state.duelNo, 'legal')) return gameOver(`À sec : même la mise légale (${entryFor(state.duelNo, 'legal')}) est trop chère.`);
   if (state.coqs[state.sel].dead) state.sel = state.coqs.indexOf(alive()[0]);
 }
-function gameOver(why) { state.over = why; scene = 'over'; sfx.lose(); }
+function gameOver(why) { state.over = why; scene = 'over'; recordRun(false, why.split(/[.:]/)[0]); sfx.lose(); }
 function heal(i) {
   const c = state.coqs[i];
   if (c.dead || !c.injuries.length) return;
@@ -571,7 +615,8 @@ function drawDuelResult(d) {
 function drawYard() {
   drawYardBg();
   rect(0, 0, W, 52, 'rgba(8,6,8,0.9)');
-  text(`DUEL ${state.duelNo}/${tune.duels} À VENIR`, 20, 26, 22, C.text, 'left');
+  text(`DUEL ${state.duelNo}/${tune.duels} À VENIR`, 20, 18, 20, C.text, 'left');
+  text(`Équilibrage ${PRESETS[CONFIG.preset.value] ? PRESETS[CONFIG.preset.value].name : 'personnalisé'}`, 20, 40, 14, C.dim, 'left', false);
   text(`Caisse : ${state.money} crédits`, W / 2 + 60, 26, 22, C.gold);
   ctx.save(); ctx.shadowColor = C.warn; ctx.shadowBlur = 16; text('POULAILLER', W - 20, 26, 26, C.warn, 'right'); ctx.restore();
   const left = tune.rentDuel - state.duelNo;
@@ -590,13 +635,14 @@ function drawYard() {
       const s = c.src;
       wrap(s.blurb, x + 186, y + 56, 196, 14, C.dim);
       [`Vie ${s.hp}`, `Attaque ${s.atk}`, `Défense ${s.def}`, `Vitesse ${s.spd}`, `Victoires ${c.wins}`].forEach((l, k) => text(l, x + 186, y + 106 + k * 22, 17, C.text, 'left'));
+      if (tune.foeInfo >= 2) wrap(`Contre lui : ${matchup(c, foeStats(state.duelNo, state.circuit))}`, x + 16, y + 212, 368, 14, '#d8c89a');
       if (c.injuries.length) {
-        c.injuries.forEach((inj, k) => text(`${R.injuries[inj.id].name} (repos ${inj.left})`, x + 16, y + 214 + k * 20, 15, C.warn, 'left'));
+        c.injuries.forEach((inj, k) => text(`${R.injuries[inj.id].name} (repos ${inj.left})`, x + 16, y + 254 + k * 18, 15, C.warn, 'left'));
         const cost = tune.healCost * c.injuries.length;
         frameBox(x + 230, y + 240, 154, 44, C.warn, 'rgba(40,24,10,0.95)', 2);
         text(`S. Soigner ${cost}`, x + 307, y + 262, 16, C.warn);
         button(x + 230, y + 240, 154, 44, 'heal' + i);
-      } else text('En forme', x + 16, y + 262, 16, C.ok, 'left');
+      } else text('En forme', x + 16, y + 272, 16, C.ok, 'left');
     }
     button(x, y, w, 230, 'sel' + i);
   });
@@ -604,9 +650,15 @@ function drawYard() {
   const foe = R.foes[(state.duelNo - 1) % R.foes.length];
   frameBox(20, 428, 420, 280, '#5a4a3e');
   text('Prochain adversaire', 36, 450, 16, C.dim, 'left');
-  text(foe.name, 36, 480, 24, C.text, 'left');
+  text(foe.name, 36, 480, 22, C.text, 'left');
   drawRooster(foe.look, 120, 680, Math.round(5 * (foe.scale || 1)), 1);
-  wrap(`« ${foe.rumor} »`, 220, 520, 210, 16, C.dim);
+  wrap(`« ${foe.rumor} »`, 220, 470, 210, 15, C.dim);
+  if (tune.foeInfo >= 1) {
+    const fs = foeStats(state.duelNo, state.circuit);
+    text(`Style : ${{ equilibre: 'équilibré', prudent: 'prudent', brute: 'brute', vicieux: 'vicieux', fou: 'imprévisible' }[foe.style]}`, 220, 590, 15, C.text, 'left');
+    wrap(foeTraits(fs).replace(/^./, m => m.toUpperCase()) + '.', 220, 614, 210, 15, '#d8c89a');
+    if (state.circuit === 'clan') text('Plus dur en clandestin.', 220, 682, 14, C.magenta, 'left', false);
+  }
   // circuit
   ['legal', 'clan'].forEach((k, i) => {
     const x = 460 + i * 290, y = 428, sel = state.circuit === k, col = k === 'clan' ? C.magenta : C.cyan;
@@ -650,18 +702,42 @@ const scenes = {
   title: {
     update() {
       state.t += STEP;
-      if (pressed('Enter') || pressed('Space') || clicks.length) { clicks = []; reset(); scene = 'play'; sfx.click(); }
+      const act = clickedAct(), i = PRESET_IDS.indexOf(CONFIG.preset.value);
+      if (pressed('ArrowRight')) { applyPreset(PRESET_IDS[(i + 1) % PRESET_IDS.length]); sfx.click(); }
+      if (pressed('ArrowLeft')) { applyPreset(PRESET_IDS[(i + PRESET_IDS.length - 1) % PRESET_IDS.length]); sfx.click(); }
+      if (act && act.startsWith('preset-')) { applyPreset(act.slice(7)); sfx.click(); }
+      if (pressed('Enter') || pressed('Space') || act === 'start') { reset(); scene = 'play'; sfx.click(); }
     },
     draw() {
+      ui = [];
       drawYardBg();
-      rect(0, 0, W, H, 'rgba(10,8,10,0.55)');
+      rect(0, 0, W, H, 'rgba(10,8,10,0.6)');
       ctx.save(); ctx.shadowColor = C.magenta; ctx.shadowBlur = Math.floor(state.t * 8) % 13 === 0 ? 0 : 30;
-      text(TITLE, W / 2, 140, 110, C.magenta); ctx.restore();
-      text('Des coqs, un loyer, et la mort au bout de chaque pari.', W / 2, 230, 22, C.text);
-      drawRooster(R.coqs[0].look, W / 2 - 220, 470, 8, 1);
-      drawRooster(R.foes[2].look, W / 2 + 220, 470, 8, -1);
-      CONTROLS.forEach((c, i) => text(c, W / 2, 530 + i * 32, 17, C.dim, 'center', false));
-      text('Entrée pour commencer', W / 2, H - 50, 28, C.cyan);
+      text(TITLE, W / 2, 70, 84, C.magenta); ctx.restore();
+      text('Des coqs, un loyer, et la mort au bout de chaque pari.', W / 2, 132, 20, C.text);
+      text('Configuration d\u2019équilibrage (← →)', W / 2, 172, 17, C.gold);
+      PRESET_IDS.forEach((id, i) => {
+        const x = 40 + i * 305, y = 188, sel = CONFIG.preset.value === id, p = PRESETS[id];
+        frameBox(x, y, 290, 116, sel ? C.gold : '#4a3e36', sel ? 'rgba(50,38,16,0.95)' : 'rgba(16,12,14,0.92)', sel ? 4 : 2);
+        text(p.name, x + 145, y + 22, 17, sel ? C.gold : C.text);
+        wrap(p.desc, x + 14, y + 50, 262, 14, sel ? C.text : C.dim);
+        button(x, y, 290, 116, 'preset-' + id);
+      });
+      CONTROLS.forEach((c, i) => text(c, W / 2, 330 + i * 26, 15, C.dim, 'center', false));
+      const runs = store('runs') || [];
+      frameBox(250, 418, 780, 210, '#4a3e36', 'rgba(14,11,12,0.92)', 2);
+      text('Dernières parties', 270, 438, 16, C.text, 'left');
+      if (!runs.length) text('Aucune pour l\u2019instant.', 270, 470, 15, C.dim, 'left', false);
+      runs.forEach((r, i) => {
+        text(`${r.win ? 'GAGNÉ' : 'PERDU'} · ${r.preset} · ${r.money} cr. · ${r.deaths} mort${r.deaths > 1 ? 's' : ''}`, 270, 468 + i * 26, 14, r.win ? C.ok : C.warn, 'left');
+        text(r.path, 640, 468 + i * 26, 14, C.dim, 'left', false);
+      });
+      text('L/C : circuit · V victoire, D arrêt, A abandon, M mort', 640, 612, 12, C.dim, 'center', false);
+      drawRooster(R.coqs[0].look, 120, 640, 6, 1);
+      drawRooster(R.foes[2].look, 1160, 640, 6, -1);
+      frameBox(440, 646, 400, 56, C.cyan, 'rgba(10,30,34,0.95)', 3);
+      text('Entrée pour commencer', W / 2, 674, 24, C.cyan);
+      button(440, 646, 400, 56, 'start');
     },
   },
   play: {
@@ -675,18 +751,19 @@ const scenes = {
     draw() { ui = []; if (state.mode === 'yard') drawYard(); else drawDuel(); },
   },
   over: {
-    update() { if (pressed('KeyR') || pressed('Enter') || clicks.length) { clicks = []; reset(); scene = 'play'; } },
+    update() { if (pressed('Escape')) { reset(); scene = 'title'; return; } if (pressed('KeyR') || pressed('Enter') || clicks.length) { clicks = []; reset(); scene = 'play'; } },
     draw() {
       clear('#120a0c');
       text('FIN DE LA PARTIE', W / 2, 200, 56, C.blood);
       wrap(state.over, 240, 290, 800, 24, C.text);
       if (state.deaths.length) text(`Morts : ${state.deaths.join(', ')}`, W / 2, 420, 20, C.warn);
-      text(`Duels joués : ${state.duelNo - 1}`, W / 2, 460, 20, C.dim);
-      text('R ou Entrée : recommencer', W / 2, 560, 26, C.cyan);
+      text(`Duels joués : ${state.duelNo - 1} · ${state.path.join(' ')}`, W / 2, 460, 20, C.dim);
+      text(`Équilibrage : ${PRESETS[CONFIG.preset.value] ? PRESETS[CONFIG.preset.value].name : 'personnalisé'}`, W / 2, 496, 18, C.dim);
+      text('R ou Entrée : recommencer · Échap : écran titre', W / 2, 580, 24, C.cyan);
     },
   },
   results: {
-    update() { if (pressed('Enter') || clicks.length) { clicks = []; reset(); scene = 'play'; } },
+    update() { if (pressed('Escape')) { reset(); scene = 'title'; return; } if (pressed('Enter') || clicks.length) { clicks = []; reset(); scene = 'play'; } },
     draw() {
       clear('#0e120e');
       text('TU AS TENU', W / 2, 150, 56, C.ok);
@@ -694,8 +771,9 @@ const scenes = {
       const alv = alive();
       text(`Survivants : ${alv.map(c => c.src.name).join(', ')}`, W / 2, 280, 22, C.text);
       text(state.deaths.length ? `Morts : ${state.deaths.join(', ')}` : 'Aucun coq mort.', W / 2, 320, 20, state.deaths.length ? C.warn : C.dim);
+      text(`${state.path.join(' ')} · équilibrage ${CONFIG.preset.value}`, W / 2, 356, 18, C.dim);
       alv.forEach((c, i) => drawRooster(c.src.look, W / 2 - (alv.length - 1) * 130 + i * 260, 560, 7, 1, 'normal', 0));
-      text('Entrée : rejouer', W / 2, H - 50, 26, C.cyan);
+      text('Entrée : rejouer · Échap : écran titre', W / 2, H - 50, 24, C.cyan);
     },
   },
 };

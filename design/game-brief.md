@@ -12,12 +12,16 @@
 > Réponses : 1. Ambiance : ok (tension posée) · 2. Apparence : « le proto peut être en pixel art, bidonville futuriste comme tu l'as décrit, on fera le choix du style pour le mvp » · 3. Soutien : ok · 4. Abandon clandestin : ok (refusé) · 5. Entre deux duels : ok · 6. Victoire et défaite : ok · 7. Langue : ok (français)
 >
 > Décisions détaillées : `design/concept-decisions.md`.
+>
+> After play: « je trouve ça vraiment chouette par contre niveau équilibrage il va falloir bien travailler par ce qu'a un moment ça me semble vraiment très dur. Je pense qu'on devrait pouvoir avoir des informations supplémentaire sur son adversaire avant le combat pour savoir qui envoyé face à lui par ce que la c'était très hasardeux comme tentative, mon premier essai à été un échec par ce que j'ai commencé par des combat en legal mais ça ne me rapporté pas assez d'argent pour espérer pouvoir payer mon loyer donc j'ai fait les deux dernier combat en clandestin mais j'ai perdu deux fois et j'ai perdu la partie. Ensuite mon deuxième essai j'ai tenté les deux premier en clandestin et après en légal ce qui m'a permis de gagner la partie. Sinon je trouve que le concept à du potentiel et qu'on peut vite se prendre au jeu avec des graphismes de qualité, une histoire et une interface immersive. »
+>
+> After play: « autant se concentrer sur les réglages directement à notre portée. Dans ce cas j'aimerais carrément en profiter pour que le prototype embarque la possibilité de tester plusieurs configurations d'équilibrage »
 
 **Pitch:** Dans un bidonville du futur, tu fais combattre tes coqs pour payer le loyer, et à chaque tour tu choisis jusqu'où risquer leur vie.
 
 **Genre:** combat de créatures au tour par tour, centré sur la prise de risque (sans capture de créatures).
 
-**Controls:** à la souris : cliquer une attaque et un soutien, puis valider. Au clavier : 1 à 4 pour les attaques, E pour encourager, P pour mettre la pression, A pour abandonner. *(guessed)*
+**Controls:** à l'écran titre, ← → pour choisir la configuration d'équilibrage. à la souris : cliquer une attaque et un soutien, puis valider. Au clavier : 1 à 4 pour les attaques, E pour encourager, P pour mettre la pression, A pour abandonner. *(guessed)*
 
 **Question:** Les duels sont-ils prenants, et le choix entre continuer et abandonner crée-t-il de la tension, sous deux niveaux de risque (règles légales et règles clandestines) ?
 
@@ -54,6 +58,8 @@ La première vraie menace arrive au duel 3 ou 4 : un adversaire plus fort, qui b
 - [x] La mort définitive, et des blessures qui durent après le combat (malus sur les stats, soins payants ou duels sautés).
 - [x] L'écran entre deux duels : choix du coq et du circuit, soins, argent, et loyer dû avant le duel 6 (version simplifiée).
 - [x] 3 coqs joueurs aux profils distincts, et 8 adversaires de difficulté croissante, avec au moins 4 façons de combattre différentes.
+- [x] Plusieurs configurations d'équilibrage à comparer (v0, A, B, C), choisies à l'écran titre, avec un historique des dernières parties.
+- [x] Des informations sur l'adversaire avant le duel : style, points forts, et comparaison estimée avec chacun de tes coqs.
 
 ## Your systems
 - duel au tour par tour · in the slice

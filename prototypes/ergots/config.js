@@ -7,6 +7,10 @@ window.CONFIG = {
   seed: 1, // every gameplay random call reads rng(), seeded from this (or ?seed= in the address)
   volume: { value: 0.5, min: 0, max: 1, step: 0.05 },
 
+  // --- Configuration d'équilibrage : change d'un coup les valeurs listées dans window.PRESETS ---
+  preset: { value: 'C', options: ['v0', 'A', 'B', 'C'] },
+  foeInfo: { value: 2, min: 0, max: 2, step: 1 },                // avant le duel : 0 rumeur seule · 1 + style et points forts · 2 + comparaison avec tes coqs
+
   // --- Économie (crédits) ---
   startMoney: { value: 40, min: 0, max: 300, step: 5 },          // argent de départ
   rent: { value: 300, min: 50, max: 800, step: 10 },             // loyer à payer
@@ -14,15 +18,17 @@ window.CONFIG = {
   duels: { value: 8, min: 3, max: 8, step: 1 },                  // nombre de duels de la tranche
   legalEntryBase: { value: 5, min: 0, max: 50, step: 1 },        // mise légale = base + duel × parDuel
   legalEntryPerDuel: { value: 3, min: 0, max: 20, step: 1 },
-  legalPurseBase: { value: 30, min: 0, max: 200, step: 5 },      // prime légale = base + duel × parDuel
-  legalPursePerDuel: { value: 12, min: 0, max: 60, step: 1 },
+  legalPurseBase: { value: 40, min: 0, max: 200, step: 5 },      // prime légale = base + duel × parDuel
+  legalPursePerDuel: { value: 14, min: 0, max: 60, step: 1 },
   clanEntryMult: { value: 3, min: 1, max: 6, step: 0.5 },        // mise clandestine = mise légale × mult
-  clanPurseMult: { value: 3, min: 1, max: 6, step: 0.5 },        // prime clandestine = prime légale × mult
+  clanPurseMultStart: { value: 2, min: 1, max: 6, step: 0.25 },  // prime clandestine = prime légale × mult, au duel 1...
+  clanPurseMultEnd: { value: 3, min: 1, max: 6, step: 0.25 },    // ... jusqu'à ce mult au dernier duel
   healCost: { value: 25, min: 0, max: 100, step: 5 },            // soin d'une blessure (crédits)
 
   // --- Règles des deux circuits ---
   refereeStop: { value: 0.2, min: 0.05, max: 0.5, step: 0.05 },  // légal : l'arbitre arrête à cette part de vie
-  clanFoeStatMult: { value: 1.12, min: 1, max: 1.5, step: 0.02 },// clandestin : adversaires plus durs
+  clanFoeMultStart: { value: 1.35, min: 1, max: 1.8, step: 0.01 }, // clandestin : stats adverses × mult au duel 1...
+  clanFoeMultEnd: { value: 1.05, min: 1, max: 1.8, step: 0.01 },   // ... jusqu'à ce mult au dernier duel
   fleeMorale: { value: 20, min: 0, max: 50, step: 1 },           // légal : l'adversaire peut jeter l'éponge sous ce moral
   fleeHp: { value: 0.4, min: 0.1, max: 0.8, step: 0.05 },        // ... et sous cette part de vie
   fleeChance: { value: 0.4, min: 0, max: 1, step: 0.05 },        // ... avec cette chance par tour
@@ -123,4 +129,17 @@ window.ROSTER = {
       moves: ['ruee', 'bond', 'ergot', 'ailes'], scale: 1.15,
       look: { body: 'big', crest: 'mohawk', tail: 'spiky', legs: 'short', c: { body: '#6c7074', wing: '#44484c', tail: '#2a2c2e', hackle: '#9aa0a4', crest: '#c0383e' } } },
   ],
+};
+
+// Les configurations d'équilibrage à comparer. Chacune remplace les valeurs qu'elle liste ;
+// les autres restent comme dans CONFIG. Choisie à l'écran titre (← →) ou dans le panneau.
+window.PRESETS = {
+  v0: { name: 'v0 · Premier prototype', desc: 'Le prototype tel que tu l\u2019as joué : rumeur seule sur l\u2019adversaire.',
+    values: { legalPurseBase: 30, legalPursePerDuel: 12, clanPurseMultStart: 3, clanPurseMultEnd: 3, clanFoeMultStart: 1.12, clanFoeMultEnd: 1.12, foeInfo: 0 } },
+  A: { name: 'A · Clandestin risqué tôt', desc: 'Clandestin dangereux et moins payé au début, moins écrasant à la fin.',
+    values: { legalPurseBase: 30, legalPursePerDuel: 12, clanPurseMultStart: 2, clanPurseMultEnd: 3, clanFoeMultStart: 1.35, clanFoeMultEnd: 1.05, foeInfo: 2 } },
+  B: { name: 'B · Légal viable', desc: 'Le légal paie mieux : une partie tout en légal peut payer le loyer, de justesse.',
+    values: { legalPurseBase: 40, legalPursePerDuel: 14, clanPurseMultStart: 3, clanPurseMultEnd: 3, clanFoeMultStart: 1.12, clanFoeMultEnd: 1.12, foeInfo: 2 } },
+  C: { name: 'C · A et B ensemble', desc: 'Clandestin risqué tôt, légal viable. Ma recommandation.',
+    values: { legalPurseBase: 40, legalPursePerDuel: 14, clanPurseMultStart: 2, clanPurseMultEnd: 3, clanFoeMultStart: 1.35, clanFoeMultEnd: 1.05, foeInfo: 2 } },
 };
