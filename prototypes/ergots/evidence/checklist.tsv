@@ -1,0 +1,35 @@
+L1	pass	evidence/clan.png	pixel-cell roosters with outlines, rusted corrugated sheets, cyan/magenta neon signs, chain-link fence, crowd silhouettes, dirt pit; blood is the only pure red (index.html:184)
+L2	pass	evidence/play.png	turn-based menu of 4 attacks, with its own layout: support column, forfeit button, approximate foe reading; no catching or types
+L3	pass	evidence/play.png	fixed 2D fight screen, your rooster lower left, the foe right facing it; the coop screen between duels (evidence/yard.png). Your rooster is shown in profile, not from the back
+F1	pass	evidence/play.png	4 attacks per rooster with damage range and accuracy shown; dodges and misses in the log (index.html:346)
+F2	pass	evidence/clan.png	Encourager / Pression next to the order, morale changes then scales attack, defence, speed (index.html:330)
+F3	pass	evidence/result.png	5-segment gauge "à vue d'œil", "il hésite", "Il souffle fort", sprite pose from morale and health (index.html:491)
+F4	pass	evidence/clan.png	legal: referee stop at 20 %, forfeit allowed; clandestine: to the death, forfeit refused, purse x3 (index.html:374, index.html:393)
+F5	pass	evidence/result.png	death removes the rooster for good; injuries persist with stat malus, healed by paying or by resting duels (index.html:426, index.html:229)
+F6	pass	evidence/yard.png	rooster choice, circuit choice, heal button when injured, money, rent due before duel 6
+F7	pass	evidence/figures.png	3 player roosters with distinct profiles, 8 foes rising in strength, 5 fighting styles (index.html:258)
+S1	pass	evidence/play.png	turn-based duel built for real
+S2	pass	evidence/clan.png	support and morale built for real (index.html:330)
+S3	pass	evidence/clan.png	two circuits with their own rules, entry and purse (index.html:308)
+S4	pass	evidence/result.png	permanent death and lasting injuries (index.html:393, index.html:426)
+S5	pass	evidence/yard.png	money counter, entry fee, purse, rent paid automatically before duel 6 or game over (index.html:431)
+S6	pass	evidence/yard.png	pay to heal all of a rooster's injuries at once (index.html:440)
+M1	pass	evidence/yard.png	three roosters with name, portrait and stats
+M2	pass	evidence/yard.png	"Loyer : 300 crédits, à payer avant le duel 6"
+M3	pass	evidence/yard.png	"Tu as 40."
+M4	pass	evidence/yard.png	choose rooster, legal circuit selected by default, Entrée to enter
+M5	pass	evidence/play.png	neon sign flickers on hits (index.html:736), crowd bobs behind the fence (index.html:461)
+M6	pass	evidence/play.png	attack with accuracy and damage range, support, then Espace
+M7	pass	evidence/play.png	log line "et rate" or damage, damage number pops, shake
+M8	pass	evidence/result.png	foe pose turns hesitant: head and tail droop (index.html:156), "il hésite"
+M9	not_assessed	-	understanding is the player's; only a playtest can tell
+M10	pass	evidence/result.png	two wins paid out (caisse 103 at duel 3), Entrée returns to the coop (index.html:424)
+M11	pass	evidence/yard.png	clandestine card: purse 126 vs 42, "Jusqu'à la mort"
+M12	not_assessed	-	a feeling; the playtest covers it
+C1	pass	evidence/result.png	duel 3 Kérosène, a brute that hits hard and injures (index.html:258)
+C2	pass	evidence/result.png	"Œil poché" lowers accuracy (83 % instead of 95 %)
+C3	pass	evidence/yard.png	heal costs 25 per injury, or the rooster rests and heals after 2 duels (index.html:426)
+C4	not_assessed	-	a feeling; the playtest covers it
+C5	pass	index.html:391	legal defeat: entry lost and an injury
+C6	pass	index.html:393	clandestine defeat: the rooster dies, marked MORT for good
+C7	pass	index.html:431	rent before duel 6; foes 7 and 8 are the strongest (config.js)

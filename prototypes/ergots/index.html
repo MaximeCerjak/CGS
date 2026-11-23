@@ -1,0 +1,788 @@
+<!doctype html>
+<!-- PROTOTYPE - NOT FOR PRODUCTION -->
+<!-- Question: Les duels sont-ils prenants, et le choix entre continuer et abandonner crée-t-il de la tension, sous deux niveaux de risque ? -->
+<!-- Date: 2026-11-23 -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ergots</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0c0a0a; overflow: hidden; }
+  body { font-variant-numeric: tabular-nums; }
+  canvas { display: block; margin: 0 auto; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script src="config.js"></script>
+<script>
+'use strict';
+// Ergots — prototype de duels de coqs au tour par tour.
+// Tout est dessiné en code, en pixel art : chaque coq est construit cellule par cellule.
+
+// ---- Built to be checked ----------------------------------------------------------------
+const params = new URLSearchParams(location.search);
+const tune = new Proxy({}, { get: (_, k) => CONFIG[k].value }); // live: tune.speed is CONFIG.speed.value
+const R = window.ROSTER;
+const STEP = 1 / 60;            // simulation step in seconds; motion is per second, never per frame
+const W = 1280, H = 720;        // logical size; the pixel look is drawn as cells, the text stays crisp
+const PIXEL = false;
+const FONT = '"Courier New", Courier, monospace';
+const TITLE = 'ERGOTS';
+const CONTROLS = [
+  'Au poulailler : 1-3 choisir un coq · L légal · C clandestin · S soigner · Entrée : arène',
+  'En duel : 1-4 attaque · E encourager · P mettre la pression · Espace valider · A abandonner',
+  'Tout se fait aussi à la souris · M : couper le son',
+];
+const clock = window.GAME_CLOCK || { now: () => performance.now() / 1000 }; // a check may inject one
+const CHEAP = params.get('render') === 'cheap';
+let seed;
+function rng() { // mulberry32; every gameplay random call reads this, never Math.random
+  seed = (seed + 0x6D2B79F5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), seed | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+const events = []; // window.game.events: anything the game wants a run to see
+
+// ---- Screen ---------------------------------------------------------------------------
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+function fit() {
+  const k = Math.min(innerWidth / W, innerHeight / H);
+  const s = PIXEL ? Math.max(1, Math.floor(k)) : k;
+  const r = PIXEL ? 1 : s * (devicePixelRatio || 1);
+  canvas.width = Math.round(W * r); canvas.height = Math.round(H * r);
+  canvas.style.width = Math.round(W * s) + 'px'; canvas.style.height = Math.round(H * s) + 'px';
+  canvas.style.marginTop = Math.max(0, Math.floor((innerHeight - H * s) / 2)) + 'px';
+  canvas.style.imageRendering = PIXEL ? 'pixelated' : 'auto';
+  ctx.setTransform(r, 0, 0, r, 0, 0); ctx.imageSmoothingEnabled = !PIXEL;
+}
+addEventListener('resize', fit); fit();
+function clear(c) { ctx.fillStyle = c; ctx.fillRect(0, 0, W, H); }
+function text(s, x, y, size, c, align = 'center', bold = true) {
+  ctx.fillStyle = c; ctx.font = `${bold ? 'bold ' : ''}${size}px ${FONT}`; ctx.textAlign = align;
+  ctx.textBaseline = 'middle'; ctx.fillText(s, x, y);
+}
+function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
+function frameBox(x, y, w, h, border, fill = 'rgba(14,11,12,0.88)', bw = 3) {
+  rect(x, y, w, h, fill); ctx.strokeStyle = border; ctx.lineWidth = bw;
+  ctx.strokeRect(x + bw / 2, y + bw / 2, w - bw, h - bw);
+}
+
+// ---- Palette -------------------------------------------------------------------------
+const C = {
+  ink: '#100c0a', rust: '#5a3426', rustL: '#7a4a32', concrete: '#4a4a48', concreteD: '#2e2e2e',
+  mud: '#4a3524', mudL: '#5e4630', sky: '#16121a', text: '#e8e0d0', dim: '#9a8f80',
+  cyan: '#3ff0ff', magenta: '#ff3fb4', blood: '#ff1a1a', gold: '#f2c14e', ok: '#7fe08a', warn: '#ffb03f',
+};
+
+// ---- Input: keys by position (event.code), OS key repeat ignored ------------------------
+const down = new Set(), hit = new Set();
+const pressed = code => hit.has(code);
+addEventListener('keydown', e => {
+  startAudio();
+  if (!e.repeat) { down.add(e.code); hit.add(e.code); }
+  if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+});
+addEventListener('keyup', e => down.delete(e.code));
+let clicks = [];
+let ui = []; // boutons dessinés à la dernière image : {x, y, w, h, act}
+canvas.addEventListener('pointerdown', e => {
+  startAudio();
+  const b = canvas.getBoundingClientRect();
+  clicks.push({ x: (e.clientX - b.left) / b.width * W, y: (e.clientY - b.top) / b.height * H });
+});
+addEventListener('blur', () => down.clear());
+function button(x, y, w, h, act) { ui.push({ x, y, w, h, act }); }
+function clickedAct() { // l'action du premier bouton cliqué depuis le dernier pas
+  for (const c of clicks) for (const b of ui) if (c.x >= b.x && c.x <= b.x + b.w && c.y >= b.y && c.y <= b.y + b.h) { clicks = []; return b.act; }
+  clicks = []; return null;
+}
+
+// ---- Audio: started on first input, mute on M --------------------------------------------
+let audio = null, muted = false;
+function startAudio() {
+  if (!audio) {
+    const ac = window.GAME_AUDIO || new (window.AudioContext || window.webkitAudioContext)();
+    const out = ac.createGain(); out.gain.value = muted ? 0 : tune.volume;
+    out.connect(ac.destination); audio = { ac, out };
+  }
+  if (audio.ac.state === 'suspended') audio.ac.resume();
+}
+function setMuted(m) { muted = m; if (audio) audio.out.gain.value = m ? 0 : tune.volume; }
+addEventListener('tune', () => setMuted(muted));
+function tone(freq, dur, type = 'square', vol = 0.3, slide = 0) {
+  if (!audio || muted) return;
+  const t = audio.ac.currentTime, o = audio.ac.createOscillator(), g = audio.ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(audio.out); o.start(t); o.stop(t + dur);
+}
+const sfx = {
+  hit() { tone(180, 0.12, 'square', 0.35, -120); tone(90, 0.18, 'sawtooth', 0.2); },
+  crit() { tone(260, 0.2, 'sawtooth', 0.35, -200); tone(70, 0.3, 'square', 0.3); },
+  miss() { tone(520, 0.08, 'triangle', 0.15, 300); },
+  buzz() { tone(110, 0.25, 'sawtooth', 0.12); },
+  win() { [392, 494, 587].forEach((f, i) => setTimeout(() => tone(f, 0.18, 'square', 0.2), i * 110)); },
+  lose() { [330, 262, 196].forEach((f, i) => setTimeout(() => tone(f, 0.25, 'triangle', 0.22), i * 160)); },
+  death() { tone(140, 0.9, 'sawtooth', 0.3, -100); },
+  coin() { tone(880, 0.07, 'square', 0.15); setTimeout(() => tone(1320, 0.09, 'square', 0.15), 70); },
+  click() { tone(300, 0.04, 'square', 0.1); },
+};
+
+// ---- Coqs en pixel art -------------------------------------------------------------------
+// Chaque coq est une grille de cellules construite depuis son look : corps, crête, queue,
+// pattes. Une passe de contour sombre donne à chaque silhouette son propre trait.
+const GW = 30, GH = 28;
+const spriteCache = new Map();
+function buildRooster(look, pose, wounds) {
+  const key = JSON.stringify([look, pose, wounds]);
+  if (spriteCache.has(key)) return spriteCache.get(key);
+  const cells = new Map();
+  const put = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < GW && y < GH) cells.set(x + ',' + y, c); };
+  const ellipse = (cx, cy, rx, ry, c) => {
+    for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
+      for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++)
+        if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1) put(x, y, c);
+  };
+  const c = look.c;
+  const size = { slim: [6, 4], round: [7, 5], big: [8, 6] }[look.body];
+  const rx = size[0], ry = size[1];
+  const shortLegs = look.legs === 'short';
+  const cx = 13, cy = shortLegs ? 18 : 16;
+  const droop = pose === 'hesitant' ? 2 : pose === 'scared' ? 3 : 0;
+  // queue (derrière le corps)
+  const ax = cx - rx + 1, ay = cy - 2 + droop;
+  if (look.tail === 'sickle') {
+    const curve = [[0, 0], [-1, -1], [-2, -2], [-3, -4], [-3, -6], [-2, -8], [-1, -9], [0, -9]];
+    for (let k = 0; k < 3; k++) curve.forEach(([dx, dy], i) => { if (i < curve.length - k) { put(ax + dx - k, ay + dy + k * 2, c.tail); put(ax + dx - k + 1, ay + dy + k * 2, c.tail); } });
+  } else if (look.tail === 'fan') {
+    for (let dy = -8; dy <= 2; dy++) { const w = 5 - Math.floor(Math.abs(dy + 3) / 2); for (let dx = 0; dx <= w; dx++) put(ax - dx, ay + dy, (dx + dy) % 3 === 0 ? c.wing : c.tail); }
+  } else if (look.tail === 'stub') {
+    for (let dy = -3; dy <= 1; dy++) for (let dx = 0; dx <= 2; dx++) put(ax - dx, ay + dy, c.tail);
+  } else { // spiky : plumes séparées en pointes
+    [[-1, -1], [-1, 0.2], [-1, 1]].forEach(([vx, vy], k) => { for (let i = 0; i < 6 - k; i++) put(ax + vx * i, ay - 2 + k * 2 - Math.round(i * (k === 0 ? 1 : k === 1 ? 0.5 : -0.2)), c.tail); });
+    for (let i = 0; i < 5; i++) put(ax - i + 1, ay - 5 - i, c.tail);
+  }
+  // pattes
+  const legTop = cy + ry - 1;
+  const legCol = '#d1a83c', spur = '#6e5420';
+  [cx - 1, cx + 2].forEach((lx, i) => {
+    const bent = pose === 'hurt' && i === 1;
+    for (let y = legTop; y <= 25; y++) put(bent && y > 22 ? lx + 1 : lx, y, legCol);
+    const fx = bent ? lx + 1 : lx;
+    put(fx - 1, 25, legCol); put(fx + 1, 25, legCol); put(fx + 2, 25, legCol); put(fx - 1, 23, spur);
+  });
+  // corps et aile
+  ellipse(cx, cy, rx, ry, c.body);
+  ellipse(cx - 1, cy, Math.max(2, rx - 3), Math.max(2, ry - 2), c.wing);
+  for (let x = cx - rx + 3; x < cx + 2; x += 2) put(x, cy + ry - 2, c.wing);
+  if (pose === 'scared') [[cx - rx, cy - 2], [cx - rx + 1, cy + 3], [cx + rx, cy - 3], [cx + 2, cy - ry - 1], [cx - 3, cy - ry - 1]].forEach(([x, y]) => put(x, y, c.body));
+  // cou et tête
+  const hx = cx + rx - 1 + (pose === 'scared' ? -1 : 0), hy = 7 + droop + (shortLegs ? 1 : 0);
+  for (let t = 0; t <= 1; t += 0.1) { const nx = cx + rx - 3 + (hx - (cx + rx - 3)) * t, ny = cy - ry + 1 + (hy + 1 - (cy - ry + 1)) * t; ellipse(nx, ny, 1.8, 1.4, c.hackle); }
+  ellipse(hx, hy, 2.6, 2.4, c.hackle);
+  put(hx + 3, hy, '#e3b448'); put(hx + 4, hy, '#e3b448'); put(hx + 3, hy + 1, '#b88a2a'); // bec
+  put(hx + 2, hy + 2, '#a32a34'); put(hx + 2, hy + 3, '#a32a34'); // barbillon
+  if (look.crest === 'single') { for (let i = -1; i <= 2; i++) put(hx + i, hy - 3, c.crest); put(hx - 1, hy - 4, c.crest); put(hx + 1, hy - 4, c.crest); put(hx + 2, hy - 5, c.crest); put(hx + 0, hy - 5, c.crest); }
+  else if (look.crest === 'rose') { ellipse(hx, hy - 3, 2, 1, c.crest); }
+  else if (look.crest === 'mohawk') { for (let i = -2; i <= 2; i++) for (let j = 3; j <= 4 + (i + 2) % 2 + (i === 0 ? 1 : 0); j++) put(hx + i, hy - j, c.crest); }
+  else { put(hx - 1, hy - 3, '#7a5040'); put(hx - 1, hy - 1, '#e8d8c0'); put(hx, hy - 2, '#e8d8c0'); } // scar : crête arrachée, cicatrice
+  // œil selon l'état d'esprit
+  if (pose === 'dead') { put(hx, hy - 2, C.ink); put(hx + 2, hy, C.ink); put(hx + 1, hy - 1, C.ink); put(hx + 2, hy - 2, C.ink); put(hx, hy, C.ink); }
+  else if (pose === 'scared') { put(hx + 1, hy - 1, '#ffffff'); put(hx, hy - 1, '#ffffff'); put(hx + 2, hy - 1, C.ink); }
+  else if (pose === 'hesitant') { put(hx + 1, hy - 1, C.ink); put(hx + 2, hy - 1, C.ink); }
+  else put(hx + 1, hy - 1, C.ink);
+  // sang : le seul rouge pur
+  for (let i = 0; i < wounds; i++) put(cx - 3 + ((i * 5) % 8), cy - 2 + ((i * 3) % 5), C.blood);
+  // contour
+  const out = new Map(cells);
+  for (const k of cells.keys()) {
+    const [x, y] = k.split(',').map(Number);
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const n = (x + dx) + ',' + (y + dy); if (!cells.has(n)) out.set(n, C.ink); });
+  }
+  const list = [...out.entries()].map(([k, col]) => { const [x, y] = k.split(',').map(Number); return [x, y, col]; });
+  spriteCache.set(key, list);
+  return list;
+}
+// Dessine un coq : (x, y) = milieu bas, px = taille d'une cellule, face = 1 vers la droite, -1 vers la gauche.
+function drawRooster(look, x, y, px, face, pose = 'normal', wounds = 0) {
+  const cells = buildRooster(look, pose === 'dead' ? 'dead' : pose, wounds);
+  ctx.save();
+  ctx.translate(Math.round(x), Math.round(y));
+  if (pose === 'dead') { ctx.translate(0, -px * 4); ctx.rotate(face > 0 ? Math.PI / 2 : -Math.PI / 2); ctx.translate(0, px * 6); }
+  for (const [cx, cy, col] of cells) {
+    const gx = face > 0 ? cx : GW - 1 - cx;
+    rect((gx - GW / 2) * px, (cy - 26) * px, px, px, col);
+  }
+  ctx.restore();
+}
+
+// ---- Règles du jeu ---------------------------------------------------------------------
+function legalEntry(d) { return tune.legalEntryBase + tune.legalEntryPerDuel * d; }
+function legalPurse(d) { return tune.legalPurseBase + tune.legalPursePerDuel * d; }
+function entryFor(d, circuit) { return Math.round(legalEntry(d) * (circuit === 'clan' ? tune.clanEntryMult : 1)); }
+function purseFor(d, circuit) { return Math.round(legalPurse(d) * (circuit === 'clan' ? tune.clanPurseMult : 1)); }
+function injuryMult(f, stat) { let m = 1; for (const i of f.injuries) if (R.injuries[i.id].stat === stat) m *= 1 - tune.injuryMalus; return m; }
+function moraleFactor(m) { return 1 - tune.moraleSpan / 2 + tune.moraleSpan * m / 100; }
+function mood(f) { return f.morale < tune.moraleScared ? 'scared' : f.morale < tune.moraleHesitant ? 'hesitant' : 'ok'; }
+function eff(f, stat) {
+  let v = f[stat] * injuryMult(f, stat) * moraleFactor(f.morale) * (f.turn[stat] || 1);
+  if (stat === 'spd' && f.energy < 20) v *= 0.85;
+  return v;
+}
+function accOf(f, move) { // précision affichée : connue du joueur, avant l'esquive adverse
+  let a = move.acc + f.acc - (f.turn.accMalus || 0);
+  for (const i of f.injuries) if (R.injuries[i.id].stat === 'acc') a -= tune.injuryAccMalus;
+  const md = mood(f); if (md === 'scared') a -= 15; else if (md === 'hesitant') a -= 5;
+  if (!move.buff && f.energy < move.cost) a -= tune.tiredAcc;
+  return Math.max(5, Math.min(100, Math.round(a)));
+}
+function makeFighter(src, side, mult = 1, injuries = []) {
+  return { name: src.name, look: src.look, moves: src.moves, side, scale: src.scale || 1,
+    maxHp: Math.round(src.hp * mult), hp: Math.round(src.hp * mult), atk: src.atk * mult, def: src.def * mult, spd: src.spd * mult,
+    acc: src.acc, morale: src.morale, energy: 100, injuries, guard: false, dodge: 0, turn: {}, style: src.style };
+}
+function addInjury(f, id) {
+  const ids = Object.keys(R.injuries);
+  const pick = id || ids[Math.floor(rng() * ids.length)];
+  const inj = { id: pick, left: tune.injuryDuels };
+  f.injuries.push(inj);
+  return inj;
+}
+
+// IA : chaque style a sa façon de combattre
+function foeChoose(f, p) {
+  const ms = f.moves.map(id => ({ id, m: R.moves[id] }));
+  const dmg = ms.filter(x => !x.m.buff), buffs = ms.filter(x => x.m.buff);
+  const avg = x => (x.m.min + x.m.max) / 2 * x.m.acc / 100;
+  const best = (list, key) => list.slice().sort((a, b) => key(b) - key(a))[0];
+  const affordable = dmg.filter(x => x.m.cost <= f.energy);
+  const pool = affordable.length ? affordable : dmg;
+  if (f.energy < 15 && buffs.length && rng() < 0.6) return buffs[0].id;
+  switch (f.style) {
+    case 'brute': return best(pool, x => x.m.max).id;
+    case 'prudent':
+      if (f.hp < f.maxHp * 0.5 && buffs.length && rng() < 0.5) return buffs[Math.floor(rng() * buffs.length)].id;
+      return best(pool, x => x.m.acc).id;
+    case 'vicieux': {
+      const fe = pool.find(x => x.m.moraleHit), oe = pool.find(x => x.m.injury);
+      if (fe && p.morale > 35 && rng() < 0.5) return fe.id;
+      if (oe && rng() < 0.6) return oe.id;
+      return best(pool, avg).id;
+    }
+    case 'fou':
+      if (f.hp < f.maxHp * 0.4) return best(pool, x => x.m.max).id;
+      return pool[Math.floor(rng() * pool.length)].id;
+    default:
+      if (buffs.length && f.energy < 30 && rng() < 0.5) return buffs[0].id;
+      return rng() < 0.6 ? best(pool, avg).id : pool[Math.floor(rng() * pool.length)].id;
+  }
+}
+
+// ---- État de la partie ------------------------------------------------------------------
+let scene, state;
+function reset() {
+  seed = Number(params.get('seed')) || CONFIG.seed;
+  state = {
+    t: 0, score: 0, gained: '',
+    mode: 'yard', duelNo: 1, money: tune.startMoney, rentPaid: false,
+    coqs: R.coqs.map(c => ({ src: c, dead: false, injuries: [], wins: 0 })),
+    sel: 0, circuit: 'legal', note: '', noteT: 0, duel: null, over: '', deaths: [],
+  };
+}
+function alive() { return state.coqs.filter(c => !c.dead); }
+function say(s) { state.note = s; state.noteT = 240; }
+
+function enterArena() {
+  const coq = state.coqs[state.sel];
+  if (coq.dead) { say(`${coq.src.name} est mort. Choisis un autre coq.`); sfx.buzz(); return; }
+  const entry = entryFor(state.duelNo, state.circuit);
+  if (state.money < entry) { say(`Pas assez pour la mise : il faut ${entry} crédits.`); sfx.buzz(); return; }
+  state.money -= entry;
+  const foeSrc = R.foes[(state.duelNo - 1) % R.foes.length];
+  const P = makeFighter(coq.src, 'p', 1, coq.injuries);
+  const E = makeFighter(foeSrc, 'e', state.circuit === 'clan' ? tune.clanFoeStatMult : 1, []);
+  state.duel = {
+    coq, P, E, circuit: state.circuit, entry, purse: purseFor(state.duelNo, state.circuit),
+    phase: 'choose', move: 0, sup: 'none', beats: [], beatT: 0, log: [], result: null, resultText: '',
+    view: null, fx: { flash: 0, neon: 0, lungeP: 0, lungeE: 0, shakeP: 0, shakeE: 0, pops: [] }, stains: [], turnNo: 1,
+  };
+  const d = state.duel;
+  d.view = snap(d);
+  log(d, state.circuit === 'clan' ? 'Sous-sol. Pas d’arbitre, pas d’abandon. Jusqu’à la mort.' : 'Arène municipale. L’arbitre arrête le combat avant la mort.');
+  log(d, `${P.name} contre ${E.name}. Choisis une attaque et un soutien.`);
+  state.mode = 'duel';
+  events.push({ type: 'duel', no: state.duelNo, circuit: state.circuit });
+  sfx.buzz();
+}
+function log(d, s) { d.log.push(s); if (d.log.length > 4) d.log.shift(); }
+function snap(d) {
+  const f = x => ({ hp: x.hp, energy: x.energy, morale: x.morale, injuries: x.injuries.map(i => i.id), mood: mood(x), dead: x.hp <= 0 && d.circuit === 'clan' });
+  return { p: f(d.P), e: f(d.E) };
+}
+function beat(d, txt, fx) { d.beats.push({ txt, view: snap(d), fx }); }
+
+// Un tour complet : calculé d'un coup, puis joué temps par temps (beats).
+function resolveTurn(d) {
+  const P = d.P, E = d.E;
+  P.turn = {}; E.turn = {};
+  if (d.sup === 'encourage') {
+    P.morale = Math.min(100, P.morale + tune.encourageMorale); P.turn.def = tune.encourageDef;
+    beat(d, `Tu encourages ${P.name}. Il se redresse.`);
+  } else if (d.sup === 'pressure') {
+    P.morale = Math.max(0, P.morale - tune.pressureMorale);
+    P.turn.atk = tune.pressureAtk; P.turn.spd = tune.pressureSpd; P.turn.accMalus = tune.pressureAcc;
+    beat(d, `Tu mets la pression à ${P.name} : il s’emballe.`);
+  }
+  const pm = P.moves[d.move], em = foeChoose(E, P);
+  const order = eff(P, 'spd') + rng() * 2 >= eff(E, 'spd') + rng() * 2 ? [[P, E, pm], [E, P, em]] : [[E, P, em], [P, E, pm]];
+  for (const [a, b, mid] of order) { if (d.result) break; act(d, a, b, mid); }
+  if (!d.result) endOfTurn(d);
+}
+function act(d, a, b, mid) {
+  const m = R.moves[mid];
+  const tired = !m.buff && a.energy < m.cost;
+  a.energy = Math.max(0, a.energy - m.cost);
+  if (m.buff) {
+    a.energy = Math.min(100, a.energy + (m.energyGain || 0));
+    if (m.buff === 'guard') { a.guard = true; a.morale = Math.min(100, a.morale + (m.moraleGain || 0)); beat(d, `${a.name} bat des ailes et se met en garde.`, { lunge: a.side }); }
+    else { a.dodge = m.dodge; beat(d, `${a.name} se fait tout petit, prêt à esquiver.`, { lunge: a.side }); }
+    return;
+  }
+  const spdGap = Math.max(0, Math.min(tune.speedDodgeMax, (eff(b, 'spd') - eff(a, 'spd')) * tune.speedDodgePerPoint));
+  const chance = (accOf(a, m) - b.dodge - spdGap) / 100;
+  const roll = rng();
+  if (roll >= chance) {
+    a.morale = Math.max(0, a.morale - tune.moraleMissed - (m.missMorale || 0));
+    const dodged = roll < accOf(a, m) / 100;
+    beat(d, dodged ? `${a.name} tente ${m.name}... ${b.name} esquive !` : `${a.name} tente ${m.name}... et rate.`, { lunge: a.side, miss: true });
+    return;
+  }
+  let base = m.min + Math.floor(rng() * (m.max - m.min + 1));
+  const atkE = eff(a, 'atk'), defE = eff(b, 'def') * (b.guard ? tune.guardDef : 1);
+  let dmg = base * 2 * atkE / (atkE + defE);
+  if (tired) dmg *= tune.tiredDamage;
+  const crit = rng() < tune.critChance;
+  if (crit) dmg *= tune.critMult;
+  dmg = Math.max(1, Math.round(dmg));
+  b.guard = false;
+  b.hp -= dmg;
+  if (d.circuit === 'legal') b.hp = Math.max(1, b.hp); else b.hp = Math.max(0, b.hp);
+  const big = dmg >= b.maxHp * 0.15;
+  b.morale = Math.max(0, b.morale - (big ? tune.moraleBigHit : tune.moraleSmallHit) - (m.moraleHit || 0));
+  a.morale = Math.min(100, a.morale + tune.moraleLanded);
+  let txt = `${a.name} : ${m.name} ! ${crit ? 'Coup terrible, ' : ''}${dmg} dégâts.`;
+  if (m.moraleHit) txt += ` ${b.name} se trouble.`;
+  if (tired) txt += ' (à bout de souffle)';
+  // blessure
+  if (dmg >= b.maxHp * tune.injuryHitFrac || m.injury) {
+    let ch = d.circuit === 'clan' ? tune.injuryChanceClan : tune.injuryChanceLegal;
+    if (m.injury) ch *= m.injuryBoost || 1;
+    if (rng() < ch) { const inj = addInjury(b, m.injury); txt += ` Blessure : ${R.injuries[inj.id].name.toLowerCase()}.`; }
+  }
+  d.stains.push({ x: (b.side === 'p' ? 330 : 880) + (rng() - 0.5) * 140, y: 400 + (rng() - 0.5) * 50, r: 2 + Math.floor(rng() * 3) });
+  beat(d, txt, { lunge: a.side, hit: b.side, dmg, crit });
+  checkEnd(d, b);
+}
+function checkEnd(d, b) {
+  if (d.result) return;
+  if (d.circuit === 'clan' && b.hp <= 0) {
+    if (b.side === 'p') { d.result = 'mort'; beat(d, `${b.name} ne se relève pas.`, { death: 'p' }); }
+    else { d.result = 'victoire'; beat(d, `${b.name} ne se relève pas. Victoire.`, { death: 'e' }); }
+  } else if (d.circuit === 'legal' && b.hp <= b.maxHp * tune.refereeStop) {
+    if (b.side === 'p') {
+      d.result = 'arret';
+      if (!d.P.injuries.length || rng() < 0.6) addInjury(d.P);
+      beat(d, `L’arbitre arrête le combat. ${b.name} est battu, et blessé.`, { ref: true });
+    } else { d.result = 'victoire'; beat(d, `L’arbitre arrête le combat. Victoire !`, { ref: true }); }
+  }
+}
+function endOfTurn(d) {
+  for (const f of [d.P, d.E]) {
+    f.energy = Math.min(100, f.energy + tune.energyRegen);
+    if (f.hp < f.maxHp * 0.3) f.morale = Math.max(0, f.morale - tune.moraleLowHpDrain);
+    f.dodge = 0; f.turn = {};
+  }
+  const E = d.E;
+  if (d.circuit === 'legal' && E.morale < tune.fleeMorale && E.hp < E.maxHp * tune.fleeHp && rng() < tune.fleeChance) {
+    d.result = 'victoire'; beat(d, `L’entraîneur d’en face jette l’éponge. Victoire !`, { ref: true });
+  }
+  d.turnNo++;
+}
+function abandon(d) {
+  if (d.circuit === 'clan') { log(d, 'Pas d’abandon ici. On va jusqu’au bout.'); sfx.buzz(); d.fx.neon = 20; return; }
+  d.result = 'abandon'; d.beats = []; beat(d, `Tu jettes l’éponge. ${d.P.name} est sauf. La mise est perdue.`, { ref: true });
+  d.phase = 'anim'; d.beatT = 0;
+}
+function finishDuel() {
+  const d = state.duel, coq = d.coq;
+  const res = d.result;
+  if (res === 'victoire') { state.money += d.purse; coq.wins++; sfx.coin(); }
+  if (res === 'mort') { coq.dead = true; state.deaths.push(`${coq.src.name} (duel ${state.duelNo})`); }
+  for (const c of state.coqs) if (c !== coq && !c.dead) { c.injuries.forEach(i => i.left--); c.injuries = c.injuries.filter(i => i.left > 0); }
+  events.push({ type: 'result', no: state.duelNo, res });
+  state.duel = null; state.mode = 'yard';
+  state.duelNo++;
+  if (!alive().length) return gameOver('Tous tes coqs sont morts. Il n’y a plus rien à parier.');
+  if (state.duelNo === tune.rentDuel && !state.rentPaid) {
+    if (state.money >= tune.rent) { state.money -= tune.rent; state.rentPaid = true; say(`Loyer payé : ${tune.rent} crédits. Il te reste ${state.money}.`); sfx.coin(); }
+    else return gameOver(`Le loyer tombe : ${tune.rent} crédits. Tu n’en as que ${state.money}. La famille est expulsée.`);
+  }
+  if (state.duelNo > tune.duels) { state.gained = 'fin'; scene = 'results'; sfx.win(); return; }
+  if (state.money < entryFor(state.duelNo, 'legal')) return gameOver(`À sec : même la mise légale (${entryFor(state.duelNo, 'legal')}) est trop chère.`);
+  if (state.coqs[state.sel].dead) state.sel = state.coqs.indexOf(alive()[0]);
+}
+function gameOver(why) { state.over = why; scene = 'over'; sfx.lose(); }
+function heal(i) {
+  const c = state.coqs[i];
+  if (c.dead || !c.injuries.length) return;
+  const cost = tune.healCost * c.injuries.length;
+  if (state.money < cost) { say(`Soigner ${c.src.name} coûte ${cost} crédits. Tu n’as pas assez.`); sfx.buzz(); return; }
+  state.money -= cost; c.injuries = []; say(`${c.src.name} est soigné (${cost} crédits).`); sfx.coin();
+}
+
+// ---- Décors -------------------------------------------------------------------------------
+function drawArena(d) {
+  const clan = d.circuit === 'clan', t = state.t;
+  rect(0, 0, W, 300, clan ? '#120c14' : C.sky);
+  // tôles ondulées rouillées
+  for (let x = 0; x < W; x += 16) rect(x, 40, 8, 210, x % 32 ? C.rust : C.rustL);
+  for (let i = 0; i < 14; i++) rect((i * 137) % W, 60 + (i * 53) % 160, 24, 12, '#6e3c22');
+  // néon
+  const flick = d.fx.neon > 0 && Math.floor(d.fx.neon / 3) % 2 === 0;
+  const neonCol = clan ? C.magenta : C.cyan;
+  ctx.save(); ctx.shadowColor = neonCol; ctx.shadowBlur = flick ? 0 : 22;
+  text(clan ? 'SOUS-SOL · FOSSE 9' : 'ARÈNE MUNICIPALE', W / 2, 84, 34, flick ? '#3a3a3a' : neonCol);
+  ctx.restore();
+  // public : silhouettes têtes et épaules
+  for (let row = 0; row < 3; row++) for (let i = 0; i < 26; i++) {
+    const x = i * 52 + (row % 2) * 26 - 10, bob = Math.round(Math.sin(t * 3 + i * 1.7 + row) * (d.fx.flash > 0 ? 5 : 2));
+    const y = 170 + row * 34 + bob, col = row === 2 ? '#0a080a' : row === 1 ? '#141014' : '#1c161a';
+    rect(x + 12, y, 16, 14, col); rect(x + 8, y + 14, 24, 6, col); rect(x + 2, y + 20, 36, 30, col);
+    if ((i + row) % 5 === 0) { rect(x + 30, y + 4 - bob, 6, 18, col); rect(x + 28, y - 2 - bob, 10, 6, col); } // bras levé
+  }
+  // grillage
+  ctx.strokeStyle = 'rgba(160,160,150,0.35)'; ctx.lineWidth = 2; ctx.beginPath();
+  for (let x = -300; x < W; x += 22) { ctx.moveTo(x, 150); ctx.lineTo(x + 150, 300); ctx.moveTo(x + 150, 150); ctx.lineTo(x, 300); }
+  ctx.stroke();
+  for (let x = 40; x < W; x += 240) rect(x, 140, 8, 160, '#3a3a3a');
+  // fosse de terre
+  rect(0, 296, W, 152, C.mud);
+  rect(0, 296, W, 10, '#3a2a1c');
+  for (let i = 0; i < 90; i++) rect((i * 97) % W, 312 + (i * 41) % 130, 6, 4, i % 2 ? C.mudL : '#3e2c1e');
+  for (const s of d.stains) rect(s.x, s.y, s.r * 6, s.r * 3, '#8a0a0a');
+  if (d.fx.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${d.fx.flash / 40})`; ctx.fillRect(0, 0, W, 448); }
+}
+function drawYardBg() {
+  rect(0, 0, W, H, '#1a1416');
+  for (let x = 0; x < W; x += 40) { rect(x, 0, 38, 470, x % 80 ? '#3a2c24' : '#33271f'); rect(x + 36, 0, 4, 470, '#221a16'); }
+  rect(0, 470, W, 250, '#2a2016');
+  for (let i = 0; i < 120; i++) rect((i * 89) % W, 474 + (i * 37) % 240, 14, 3, i % 3 ? '#8a7440' : '#6e5c30'); // paille
+}
+
+// ---- Interface ------------------------------------------------------------------------------
+function bar(x, y, w, h, frac, col, back = '#2a2224') { rect(x, y, w, h, back); rect(x, y, Math.max(0, w * frac), h, col); }
+function moodWord(md) { return md === 'scared' ? 'a peur' : md === 'hesitant' ? 'hésite' : 'combatif'; }
+function hpWord(f) { return f > 0.75 ? 'Frais' : f > 0.5 ? 'Touché' : f > 0.25 ? 'Bien amoché' : 'Au bord du gouffre'; }
+function poseOf(v, maxHp) { if (v.dead) return 'dead'; if (v.mood === 'scared') return 'scared'; if (v.mood === 'hesitant') return 'hesitant'; if (v.hp < maxHp * 0.4) return 'hurt'; return 'normal'; }
+
+function drawDuel() {
+  const d = state.duel, v = d.view, P = d.P, E = d.E, clan = d.circuit === 'clan';
+  drawArena(d);
+  // coqs
+  const lp = d.fx.lungeP > 0 ? Math.sin(d.fx.lungeP / 14 * Math.PI) * 60 : 0;
+  const le = d.fx.lungeE > 0 ? Math.sin(d.fx.lungeE / 14 * Math.PI) * 60 : 0;
+  const sp = d.fx.shakeP > 0 ? (d.fx.shakeP % 4 < 2 ? -6 : 6) : 0, se = d.fx.shakeE > 0 ? (d.fx.shakeE % 4 < 2 ? -6 : 6) : 0;
+  drawRooster(E.look, 900 - le + se, 400, Math.round(6 * E.scale), -1, poseOf(v.e, E.maxHp), v.e.hp < E.maxHp * 0.5 ? 3 : v.e.hp < E.maxHp * 0.8 ? 1 : 0);
+  drawRooster(P.look, 340 + lp + sp, 442, 7, 1, poseOf(v.p, P.maxHp), v.p.hp < P.maxHp * 0.5 ? 3 : v.p.hp < P.maxHp * 0.8 ? 1 : 0);
+  for (const p of d.fx.pops) text(p.s, p.x, p.y - (40 - p.t), p.big ? 40 : 30, p.col);
+  // barre du haut
+  rect(0, 0, W, 34, 'rgba(8,6,8,0.92)');
+  text(`DUEL ${state.duelNo}/${tune.duels} · ${clan ? 'CLANDESTIN : jusqu’à la mort' : `LÉGAL : arbitre à ${Math.round(tune.refereeStop * 100)} % de vie`}`, 16, 17, 18, clan ? C.magenta : C.cyan, 'left');
+  text(`Mise ${d.entry} · Prime ${d.purse} · Caisse ${state.money} cr.`, W - 16, 17, 18, C.gold, 'right');
+  // panneau du joueur : chiffres précis
+  frameBox(16, 42, 400, 146, '#c9a23a');
+  text(`${P.name} (toi)`, 32, 62, 22, C.text, 'left');
+  text(`Vie ${v.p.hp}/${P.maxHp}`, 32, 90, 18, C.text, 'left'); bar(190, 82, 210, 14, v.p.hp / P.maxHp, v.p.hp < P.maxHp * 0.3 ? C.blood : C.ok);
+  text(`Énergie ${v.p.energy}`, 32, 114, 18, C.text, 'left'); bar(190, 106, 210, 14, v.p.energy / 100, C.gold);
+  text(`Moral ${v.p.morale} · ${moodWord(v.p.mood)}`, 32, 138, 18, v.p.mood === 'ok' ? C.text : C.warn, 'left'); bar(32, 150, 368, 8, v.p.morale / 100, '#b48cff');
+  text(v.p.injuries.length ? 'Blessures : ' + v.p.injuries.map(i => R.injuries[i].name).join(', ') : 'Aucune blessure', 32, 172, 16, v.p.injuries.length ? C.warn : C.dim, 'left');
+  // panneau de l'adversaire : lecture approximative
+  frameBox(W - 416, 42, 400, 146, clan ? C.magenta : C.cyan);
+  text(E.name, W - 400, 62, 22, C.text, 'left');
+  const segs = 5, fill = Math.max(v.e.hp > 0 ? 1 : 0, Math.ceil(v.e.hp / E.maxHp * segs));
+  for (let i = 0; i < segs; i++) rect(W - 400 + i * 46, 82, 40, 14, i < fill ? (fill <= 1 ? C.blood : '#9ab07a') : '#2a2224');
+  text('à vue d’œil', W - 160, 90, 16, C.dim, 'left');
+  text(`${hpWord(v.e.hp / E.maxHp)} · ${v.e.mood === 'scared' ? 'il a peur' : v.e.mood === 'hesitant' ? 'il hésite' : 'il a l’air combatif'}`, W - 400, 116, 18, v.e.mood === 'ok' ? C.text : C.warn, 'left');
+  const signs = v.e.injuries.map(i => R.injuries[i].sign);
+  text(signs.length ? 'Il ' + signs.join(', ') + '.' : (v.e.energy < 30 ? 'Il souffle fort.' : 'Rien de visible.'), W - 400, 142, 16, signs.length ? C.warn : C.dim, 'left');
+  text(`Style : ${{ equilibre: 'équilibré', prudent: 'prudent', brute: 'brute', vicieux: 'vicieux', fou: 'imprévisible' }[E.style]}`, W - 400, 168, 16, C.dim, 'left');
+  // journal
+  rect(0, 448, W, 272, '#120e10');
+  rect(0, 448, W, 3, clan ? C.magenta : C.cyan);
+  d.log.slice(-3).forEach((s, i, arr) => text(s, 24, 472 + i * 24, 17, i === arr.length - 1 ? C.text : C.dim, 'left', false));
+  if (d.phase === 'over') return drawDuelResult(d);
+  // attaques
+  const busy = d.phase !== 'choose';
+  P.moves.forEach((id, i) => {
+    const m = R.moves[id], x = 20 + (i % 2) * 360, y = 552 + Math.floor(i / 2) * 82, sel = d.move === i;
+    frameBox(x, y, 348, 72, sel ? C.gold : '#4a3e36', sel ? 'rgba(60,44,20,0.95)' : 'rgba(20,16,16,0.95)');
+    text(`${i + 1}. ${m.name}`, x + 14, y + 22, 20, busy ? C.dim : C.text, 'left');
+    const tired = !m.buff && P.energy < m.cost;
+    const line = m.buff ? (m.buff === 'guard' ? `Garde + énergie +${m.energyGain}` : `Esquive +${m.dodge} · énergie +${m.energyGain}`)
+      : `${m.min}-${m.max} dég · ${Math.max(5, accOf(P, m) - (d.sup === 'pressure' ? tune.pressureAcc : 0))} % · -${m.cost} én${tired ? ' !' : ''}`;
+    text(line, x + 14, y + 50, 16, tired ? C.warn : sel ? '#e0d2b0' : C.dim, 'left');
+    button(x, y, 348, 72, 'move' + i);
+  });
+  // soutien
+  text('Soutien', 740, 548, 16, C.dim, 'left');
+  [['encourage', 'E. Encourager', '+moral +déf'], ['pressure', 'P. Pression', '+atq +vit -préc'], ['none', 'Aucun', '']].forEach(([k, n, s], i) => {
+    const x = 740, y = 562 + i * 52, sel = d.sup === k;
+    frameBox(x, y, 250, 46, sel ? '#b48cff' : '#4a3e36', sel ? 'rgba(40,28,60,0.95)' : 'rgba(20,16,16,0.95)');
+    text(n, x + 12, y + 16, 17, C.text, 'left'); if (s) text(s, x + 12, y + 34, 14, C.dim, 'left', false);
+    button(x, y, 250, 46, 'sup-' + k);
+  });
+  // valider et abandonner
+  frameBox(1010, 562, 250, 72, busy ? '#4a3e36' : C.ok, busy ? 'rgba(20,16,16,0.95)' : 'rgba(20,50,24,0.95)');
+  text(busy ? '...' : 'Espace : valider', 1135, 598, 20, busy ? C.dim : C.text);
+  button(1010, 562, 250, 72, 'go');
+  frameBox(1010, 644, 250, 62, clan ? '#5a2a3a' : C.warn, 'rgba(30,16,16,0.95)');
+  text(clan ? 'Abandon refusé' : 'A : abandonner', 1135, 668, 18, clan ? '#8a5a6a' : C.warn);
+  text(clan ? 'jusqu’à la mort' : 'mise perdue, coq sauf', 1135, 690, 14, C.dim, 'center', false);
+  button(1010, 644, 250, 62, 'quit');
+}
+function drawDuelResult(d) {
+  const r = d.result, col = r === 'victoire' ? C.ok : r === 'mort' ? C.blood : C.warn;
+  const title = { victoire: 'VICTOIRE', mort: `${d.P.name.toUpperCase()} EST MORT`, arret: 'DÉFAITE', abandon: 'ABANDON' }[r];
+  frameBox(240, 520, 800, 180, col);
+  text(title, W / 2, 556, 36, col);
+  const money = r === 'victoire' ? `+${d.purse} crédits de prime.` : `Mise perdue : ${d.entry} crédits.`;
+  const inj = d.coq.dead ? 'Il ne reviendra pas.' : d.P.injuries.length ? `${d.P.name} : ${d.P.injuries.map(i => R.injuries[i.id].name.toLowerCase()).join(', ')}.` : `${d.P.name} n’a pas de blessure.`;
+  text(money, W / 2, 604, 20, C.text);
+  text(inj, W / 2, 634, 18, d.P.injuries.length || d.coq.dead ? C.warn : C.dim);
+  text('Entrée : retour au poulailler', W / 2, 676, 18, C.dim);
+  button(240, 520, 800, 180, 'next');
+}
+
+function drawYard() {
+  drawYardBg();
+  rect(0, 0, W, 52, 'rgba(8,6,8,0.9)');
+  text(`DUEL ${state.duelNo}/${tune.duels} À VENIR`, 20, 26, 22, C.text, 'left');
+  text(`Caisse : ${state.money} crédits`, W / 2 + 60, 26, 22, C.gold);
+  ctx.save(); ctx.shadowColor = C.warn; ctx.shadowBlur = 16; text('POULAILLER', W - 20, 26, 26, C.warn, 'right'); ctx.restore();
+  const left = tune.rentDuel - state.duelNo;
+  const rentLine = state.rentPaid ? `Loyer payé. Tiens jusqu’au duel ${tune.duels}.`
+    : `Loyer : ${tune.rent} crédits, à payer avant le duel ${tune.rentDuel}${left > 0 ? ` (encore ${left} duel${left > 1 ? 's' : ''})` : ' (maintenant)'}. Tu as ${state.money}.`;
+  frameBox(20, 62, W - 40, 40, state.rentPaid ? C.ok : C.warn, 'rgba(30,20,12,0.92)', 2);
+  text(rentLine, W / 2, 82, 19, state.rentPaid ? C.ok : C.warn);
+  // cartes des coqs
+  state.coqs.forEach((c, i) => {
+    const x = 20 + i * 420, y = 114, w = 400, h = 300, sel = state.sel === i;
+    frameBox(x, y, w, h, c.dead ? '#3a3a3a' : sel ? C.gold : '#5a4a3e', c.dead ? 'rgba(20,20,20,0.92)' : 'rgba(18,14,14,0.9)', sel ? 4 : 3);
+    drawRooster(c.src.look, x + 92, y + 190, 6, 1, c.dead ? 'dead' : c.injuries.length ? 'hurt' : 'normal', c.injuries.length);
+    text(`${i + 1}. ${c.src.name}`, x + 186, y + 30, 22, c.dead ? '#6a6a6a' : C.text, 'left');
+    if (c.dead) { text('MORT', x + 186, y + 70, 28, C.blood, 'left'); text('Il ne reviendra pas.', x + 186, y + 104, 16, C.dim, 'left', false); }
+    else {
+      const s = c.src;
+      wrap(s.blurb, x + 186, y + 56, 196, 14, C.dim);
+      [`Vie ${s.hp}`, `Attaque ${s.atk}`, `Défense ${s.def}`, `Vitesse ${s.spd}`, `Victoires ${c.wins}`].forEach((l, k) => text(l, x + 186, y + 106 + k * 22, 17, C.text, 'left'));
+      if (c.injuries.length) {
+        c.injuries.forEach((inj, k) => text(`${R.injuries[inj.id].name} (repos ${inj.left})`, x + 16, y + 214 + k * 20, 15, C.warn, 'left'));
+        const cost = tune.healCost * c.injuries.length;
+        frameBox(x + 230, y + 240, 154, 44, C.warn, 'rgba(40,24,10,0.95)', 2);
+        text(`S. Soigner ${cost}`, x + 307, y + 262, 16, C.warn);
+        button(x + 230, y + 240, 154, 44, 'heal' + i);
+      } else text('En forme', x + 16, y + 262, 16, C.ok, 'left');
+    }
+    button(x, y, w, 230, 'sel' + i);
+  });
+  // adversaire à venir
+  const foe = R.foes[(state.duelNo - 1) % R.foes.length];
+  frameBox(20, 428, 420, 280, '#5a4a3e');
+  text('Prochain adversaire', 36, 450, 16, C.dim, 'left');
+  text(foe.name, 36, 480, 24, C.text, 'left');
+  drawRooster(foe.look, 120, 680, Math.round(5 * (foe.scale || 1)), 1);
+  wrap(`« ${foe.rumor} »`, 220, 520, 210, 16, C.dim);
+  // circuit
+  ['legal', 'clan'].forEach((k, i) => {
+    const x = 460 + i * 290, y = 428, sel = state.circuit === k, col = k === 'clan' ? C.magenta : C.cyan;
+    frameBox(x, y, 276, 200, sel ? col : '#4a3e36', sel ? 'rgba(24,18,28,0.95)' : 'rgba(16,12,14,0.9)', sel ? 4 : 3);
+    text(k === 'clan' ? 'C. CLANDESTIN' : 'L. LÉGAL', x + 138, y + 26, 22, col);
+    text(`Mise ${entryFor(state.duelNo, k)} · Prime ${purseFor(state.duelNo, k)}`, x + 138, y + 62, 17, C.gold);
+    const rules = k === 'clan' ? ['Jusqu’à la mort', 'Abandon refusé', 'Adversaire plus dur'] : [`Arbitre à ${Math.round(tune.refereeStop * 100)} % de vie`, 'Abandon permis', 'Ton coq ne peut pas mourir'];
+    rules.forEach((r, j) => text(r, x + 138, y + 102 + j * 28, 16, C.text, 'center', false));
+    button(x, y, 276, 200, 'circ-' + k);
+  });
+  frameBox(1040, 428, 220, 200, C.ok, 'rgba(20,46,24,0.95)', 4);
+  text('ENTRER', 1150, 500, 30, C.ok);
+  text('dans l’arène', 1150, 536, 18, C.text);
+  text('(Entrée)', 1150, 570, 16, C.dim);
+  button(1040, 428, 220, 200, 'go');
+  if (state.noteT > 0) { frameBox(460, 644, 800, 60, C.gold, 'rgba(30,24,10,0.95)', 2); text(state.note, 860, 674, 17, C.gold); }
+  else text('1-3 coq · L/C circuit · S soigner · Entrée arène', 860, 674, 16, C.dim);
+}
+function wrap(s, x, y, w, size, col) {
+  ctx.font = `${size}px ${FONT}`;
+  const words = s.split(' '); let line = '', yy = y;
+  for (const wd of words) { const t = line ? line + ' ' + wd : wd; if (ctx.measureText(t).width > w && line) { text(line, x, yy, size, col, 'left', false); line = wd; yy += size + 6; } else line = t; }
+  if (line) text(line, x, yy, size, col, 'left', false);
+}
+
+// ---- Scènes ----------------------------------------------------------------------------------
+const scenes = {
+  figures: {
+    update(dt) { state.t += dt; },
+    draw() {
+      clear('#1a1416');
+      const all = [...R.coqs.map(c => [c, 'Joueur']), ...R.foes.map(f => [f, 'Adversaire'])];
+      all.forEach(([c, kind], i) => {
+        const x = 110 + (i % 6) * 210, y = 300 + Math.floor(i / 6) * 330;
+        drawRooster(c.look, x, y, 6, 1);
+        text(c.name, x, y + 26, 18, C.text);
+        text(kind, x, y + 50, 14, C.dim, 'center', false);
+      });
+    },
+  },
+  title: {
+    update() {
+      state.t += STEP;
+      if (pressed('Enter') || pressed('Space') || clicks.length) { clicks = []; reset(); scene = 'play'; sfx.click(); }
+    },
+    draw() {
+      drawYardBg();
+      rect(0, 0, W, H, 'rgba(10,8,10,0.55)');
+      ctx.save(); ctx.shadowColor = C.magenta; ctx.shadowBlur = Math.floor(state.t * 8) % 13 === 0 ? 0 : 30;
+      text(TITLE, W / 2, 140, 110, C.magenta); ctx.restore();
+      text('Des coqs, un loyer, et la mort au bout de chaque pari.', W / 2, 230, 22, C.text);
+      drawRooster(R.coqs[0].look, W / 2 - 220, 470, 8, 1);
+      drawRooster(R.foes[2].look, W / 2 + 220, 470, 8, -1);
+      CONTROLS.forEach((c, i) => text(c, W / 2, 530 + i * 32, 17, C.dim, 'center', false));
+      text('Entrée pour commencer', W / 2, H - 50, 28, C.cyan);
+    },
+  },
+  play: {
+    update(dt) {
+      state.t += dt;
+      if (state.noteT > 0) state.noteT--;
+      const act = clickedAct();
+      if (state.mode === 'yard') return yardUpdate(act);
+      duelUpdate(act);
+    },
+    draw() { ui = []; if (state.mode === 'yard') drawYard(); else drawDuel(); },
+  },
+  over: {
+    update() { if (pressed('KeyR') || pressed('Enter') || clicks.length) { clicks = []; reset(); scene = 'play'; } },
+    draw() {
+      clear('#120a0c');
+      text('FIN DE LA PARTIE', W / 2, 200, 56, C.blood);
+      wrap(state.over, 240, 290, 800, 24, C.text);
+      if (state.deaths.length) text(`Morts : ${state.deaths.join(', ')}`, W / 2, 420, 20, C.warn);
+      text(`Duels joués : ${state.duelNo - 1}`, W / 2, 460, 20, C.dim);
+      text('R ou Entrée : recommencer', W / 2, 560, 26, C.cyan);
+    },
+  },
+  results: {
+    update() { if (pressed('Enter') || clicks.length) { clicks = []; reset(); scene = 'play'; } },
+    draw() {
+      clear('#0e120e');
+      text('TU AS TENU', W / 2, 150, 56, C.ok);
+      text(`${tune.duels} duels joués · loyer payé · caisse finale ${state.money} crédits`, W / 2, 230, 22, C.text);
+      const alv = alive();
+      text(`Survivants : ${alv.map(c => c.src.name).join(', ')}`, W / 2, 280, 22, C.text);
+      text(state.deaths.length ? `Morts : ${state.deaths.join(', ')}` : 'Aucun coq mort.', W / 2, 320, 20, state.deaths.length ? C.warn : C.dim);
+      alv.forEach((c, i) => drawRooster(c.src.look, W / 2 - (alv.length - 1) * 130 + i * 260, 560, 7, 1, 'normal', 0));
+      text('Entrée : rejouer', W / 2, H - 50, 26, C.cyan);
+    },
+  },
+};
+
+function yardUpdate(act) {
+  for (let i = 0; i < 3; i++) if (pressed('Digit' + (i + 1)) || act === 'sel' + i) { state.sel = i; sfx.click(); }
+  if (pressed('KeyL') || act === 'circ-legal') { state.circuit = 'legal'; sfx.click(); }
+  if (pressed('KeyC') || act === 'circ-clan') { state.circuit = 'clan'; sfx.click(); }
+  if (pressed('KeyS')) heal(state.sel);
+  for (let i = 0; i < 3; i++) if (act === 'heal' + i) heal(i);
+  if (pressed('Enter') || pressed('Space') || act === 'go') enterArena();
+}
+function duelUpdate(act) {
+  const d = state.duel, fx = d.fx;
+  for (const k of ['flash', 'neon', 'lungeP', 'lungeE', 'shakeP', 'shakeE']) if (fx[k] > 0) fx[k]--;
+  fx.pops = fx.pops.filter(p => --p.t > 0);
+  if (d.phase === 'choose') {
+    for (let i = 0; i < 4; i++) if (pressed('Digit' + (i + 1)) || act === 'move' + i) { d.move = i; sfx.click(); }
+    if (pressed('KeyE') || act === 'sup-encourage') { d.sup = d.sup === 'encourage' ? 'none' : 'encourage'; sfx.click(); }
+    if (pressed('KeyP') || act === 'sup-pressure') { d.sup = d.sup === 'pressure' ? 'none' : 'pressure'; sfx.click(); }
+    if (act === 'sup-none') d.sup = 'none';
+    if (pressed('KeyA') || act === 'quit') return abandon(d);
+    if (pressed('Space') || pressed('Enter') || act === 'go') {
+      d.beats = []; resolveTurn(d); d.phase = 'anim'; d.beatT = 0; d.sup = 'none';
+    }
+  } else if (d.phase === 'anim') {
+    if (d.beatT <= 0) {
+      const b = d.beats.shift();
+      if (!b) {
+        d.phase = d.result ? 'over' : 'choose';
+        if (d.result === 'victoire') sfx.win(); else if (d.result) sfx.lose();
+        return;
+      }
+      log(d, b.txt); d.view = b.view;
+      const f = b.fx || {};
+      if (f.lunge === 'p') fx.lungeP = 14; if (f.lunge === 'e') fx.lungeE = 14;
+      if (f.hit) {
+        fx[f.hit === 'p' ? 'shakeP' : 'shakeE'] = 16; fx.flash = f.crit ? 14 : 6; fx.neon = 18;
+        fx.pops.push({ s: '-' + f.dmg, x: f.hit === 'p' ? 340 : 900, y: 250, t: 40, col: C.blood, big: f.crit });
+        f.crit ? sfx.crit() : sfx.hit();
+      }
+      if (f.miss) sfx.miss();
+      if (f.death) { sfx.death(); fx.neon = 40; }
+      if (f.ref) sfx.buzz();
+      d.beatT = tune.beatSteps;
+    } else d.beatT--;
+    if (pressed('Space') || pressed('Enter') || act === 'go') d.beatT = 0; // accélérer
+  } else if (d.phase === 'over') {
+    if (pressed('Enter') || pressed('Space') || act === 'next') finishDuel();
+  }
+}
+
+// ---- Loop: fixed step, frame time clamped ---------------------------------------------
+function step() {
+  if (pressed('KeyM')) { setMuted(!muted); hit.delete('KeyM'); }
+  scenes[scene].update(STEP); hit.clear();
+}
+let last, acc = 0, ALPHA = 1;
+function tick() {
+  const now = clock.now();
+  acc += Math.min(now - last, 0.25); last = now;
+  while (acc >= STEP) { step(); acc -= STEP; }
+  ALPHA = acc / STEP;
+  drawFrame();
+}
+function drawFrame() { scenes[scene].draw(); }
+function frame() { tick(); requestAnimationFrame(frame); }
+function timer() { if (document.visibilityState === 'visible' && clock.now() - last > 0.1) tick(); }
+
+// ---- What a check can read and drive (?manual=1 stops the loop; players never see it) ----
+window.game = {
+  get scene() { return scene; },
+  get state() { return state; },
+  press(code) { hit.add(code); },
+  hold(code, on) { on ? down.add(code) : down.delete(code); },
+  get events() { return events; },
+  step(n = 1, draw = true, alpha = 1) {
+    for (let i = 0; i < n; i++) step();
+    if (draw) { ALPHA = alpha; drawFrame(); }
+  },
+};
+
+reset();
+scene = params.get('scene') || 'title';
+last = clock.now();
+if (params.get('manual') === '1') drawFrame();
+else { requestAnimationFrame(frame); setInterval(timer, 50); }
+</script>
+</body>
+</html>

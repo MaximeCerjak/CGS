@@ -1,0 +1,85 @@
+time	2026-11-23 01:11:05
+keep	lines	0	pinned	0
+briefword	pixel art	shown	evidence/play.png
+checklist	L1	pass	evidence/clan.png	Look : pixel art de bidonville futuriste. Des tôles rouillées, des néons fatigués qui grésillent, et une palette terne (rouille, gris béton, brun boueux) où seuls ressortent les coqs (couleurs vives et saturées) et le sang (le seul rouge pur de l'écran). Des accents de néon cyan et magenta sur les enseignes. L'arène est une fosse de terre entourée de grillage, avec le public en silhouettes sombres derrière. Signature : le néon de l'arène qui grésille et clignote quand un coup porte. Chaque coq a sa silhouette propre (crête, queue, posture), lisible à taille de jeu. Chaque personnage est dessiné, sans émoji ni simples cercles.	pixel-cell roosters with outlines, rusted corrugated sheets, cyan/magenta neon signs, chain-link fence, crowd silhouettes, dirt pit; blood is the only pure red (index.html:184)
+checklist	L2	pass	evidence/play.png	References : Pokémon (le combat au tour par tour avec un menu d'attaques, mais avec une interface différente, pour ne pas en faire une pâle copie).	turn-based menu of 4 attacks, with its own layout: support column, forfeit button, approximate foe reading; no catching or types
+checklist	L3	pass	evidence/play.png	View : 2D · Camera : un écran de combat fixe, ton coq de dos à gauche et l'adversaire de face à droite. Un écran d'entre-deux-duels montre le poulailler de fortune.	fixed 2D fight screen, your rooster lower left, the foe right facing it; the coop screen between duels (evidence/yard.png). Your rooster is shown in profile, not from the back
+checklist	F1	pass	evidence/play.png	Un duel au tour par tour : 4 attaques par coq, avec précision et fourchette de dégâts visibles, esquives et coups ratés.	4 attacks per rooster with damage range and accuracy shown; dodges and misses in the log (index.html:346)
+checklist	F2	pass	evidence/clan.png	Le soutien de l'entraîneur : encourager ou mettre la pression, en plus de l'ordre, avec un effet sur l'état d'esprit, qui modifie les stats de combat.	Encourager / Pression next to the order, morale changes then scales attack, defence, speed (index.html:330)
+checklist	F3	pass	evidence/result.png	Une lecture partielle de l'adversaire : une jauge approximative, un sprite qui change selon son état (hésitant, blessé, apeuré) et des lignes de texte.	5-segment gauge "à vue d'œil", "il hésite", "Il souffle fort", sprite pose from morale and health (index.html:491)
+checklist	F4	pass	evidence/clan.png	Deux règles de combat : légales (l'arbitre arrête le combat avant la mort, abandon permis, gains faibles) et clandestines (combat jusqu'à la mort, abandon refusé, gains bien plus élevés).	legal: referee stop at 20 %, forfeit allowed; clandestine: to the death, forfeit refused, purse x3 (index.html:374, index.html:393)
+checklist	F5	pass	evidence/result.png	La mort définitive, et des blessures qui durent après le combat (malus sur les stats, soins payants ou duels sautés).	death removes the rooster for good; injuries persist with stat malus, healed by paying or by resting duels (index.html:426, index.html:229)
+checklist	F6	pass	evidence/yard.png	L'écran entre deux duels : choix du coq et du circuit, soins, argent, et loyer dû avant le duel 6 (version simplifiée).	rooster choice, circuit choice, heal button when injured, money, rent due before duel 6
+checklist	F7	pass	evidence/figures.png	3 coqs joueurs aux profils distincts, et 8 adversaires de difficulté croissante, avec au moins 4 façons de combattre différentes.	3 player roosters with distinct profiles, 8 foes rising in strength, 5 fighting styles (index.html:258)
+checklist	S1	pass	evidence/play.png	duel au tour par tour · in the slice	turn-based duel built for real
+checklist	S2	pass	evidence/clan.png	soutien de l'entraîneur et état d'esprit · in the slice	support and morale built for real (index.html:330)
+checklist	S3	pass	evidence/clan.png	circuits légal et clandestin · in the slice	two circuits with their own rules, entry and purse (index.html:308)
+checklist	S4	pass	evidence/result.png	mort définitive et blessures · in the slice	permanent death and lasting injuries (index.html:393, index.html:426)
+checklist	S5	pass	evidence/yard.png	argent et loyer · thin stand-in	money counter, entry fee, purse, rent paid automatically before duel 6 or game over (index.html:431)
+checklist	S6	pass	evidence/yard.png	soins · in the slice	pay to heal all of a rooster's injuries at once (index.html:440)
+checklist	M1	pass	evidence/yard.png	Le joueur arrive dans le poulailler de fortune et voit ses trois coqs, chacun avec son nom, son portrait et ses stats.	three roosters with name, portrait and stats
+checklist	M2	pass	evidence/yard.png	Une ligne en haut indique : « Loyer : 300 crédits, à payer avant le duel 6.	"Loyer : 300 crédits, à payer avant le duel 6"
+checklist	M3	pass	evidence/yard.png	Tu as 40.	"Tu as 40."
+checklist	M4	pass	evidence/yard.png	» Il choisit un coq, puis le circuit légal pour le duel 1, et entre dans l'arène.	choose rooster, legal circuit selected by default, Entrée to enter
+checklist	M5	pass	evidence/play.png	Les néons grésillent et la foule s'agite derrière le grillage.	neon sign flickers on hits (index.html:736), crowd bobs behind the fence (index.html:461)
+checklist	M6	pass	evidence/play.png	Il choisit une attaque, dont il voit la précision et la fourchette de dégâts, et un soutien (encourager ou mettre la pression), puis valide.	attack with accuracy and damage range, support, then Espace
+checklist	M7	pass	evidence/play.png	Il voit le coup porter ou rater.	log line "et rate" or damage, damage number pops, shake
+checklist	M8	pass	evidence/result.png	Le sprite de l'adversaire change : il hésite.	foe pose turns hesitant: head and tail droop (index.html:156), "il hésite"
+checklist	M9	not_assessed	-	Il comprend qu'il peut lire le combat.	understanding is the player's; only a playtest can tell
+checklist	M10	pass	evidence/result.png	Il gagne, encaisse ses gains, puis revient à l'écran d'entre-deux-duels.	two wins paid out (caisse 103 at duel 3), Entrée returns to the coop (index.html:424)
+checklist	M11	pass	evidence/yard.png	Là, il découvre que le duel clandestin rapporte trois fois plus, mais se joue à mort.	clandestine card: purse 126 vs 42, "Jusqu'à la mort"
+checklist	M12	not_assessed	-	C'est le premier moment où le principe du jeu se révèle.	a feeling; the playtest covers it
+checklist	C1	pass	evidence/result.png	La première vraie menace arrive au duel 3 ou 4 : un adversaire plus fort, qui blesse.	duel 3 Kérosène, a brute that hits hard and injures (index.html:258)
+checklist	C2	pass	evidence/result.png	Le coq blessé perd en stats tant qu'il n'est pas soigné.	"Œil poché" lowers accuracy (83 % instead of 95 %)
+checklist	C3	pass	evidence/yard.png	Soit on paie les soins, et cet argent manque pour le loyer, soit on le laisse sauter des duels.	heal costs 25 per injury, or the rooster rests and heals after 2 duels (index.html:426)
+checklist	C4	not_assessed	-	C'est là que le circuit clandestin devient tentant.	a feeling; the playtest covers it
+checklist	C5	pass	index.html:391	Une défaite dans le circuit légal coûte de l'argent et des blessures.	legal defeat: entry lost and an injury
+checklist	C6	pass	index.html:393	Une défaite dans le circuit clandestin coûte le coq, pour toujours.	clandestine defeat: the rooster dies, marked MORT for good
+checklist	C7	pass	index.html:431	Le loyer tombe avant le duel 6, et les duels 7 et 8 opposent les adversaires les plus forts.	rent before duel 6; foes 7 and 8 are the strongest (config.js)
+browser	HeadlessChrome/153.0.0.0
+scene	play	0	title
+scene	play	1	play
+digits	log	17px "Courier New", Courier, monospace	tabular	0
+digits	log	bold 18px "Courier New", Courier, monospace	tabular	0
+digits	log	bold 20px "Courier New", Courier, monospace	tabular	0
+digits	log	bold 16px "Courier New", Courier, monospace	tabular	0
+digits	log	bold 30px "Courier New", Courier, monospace	tabular	0
+measure	step-time	play	0.011	0.900	290
+lane	play	stop	4.8	86
+uncaught	play	0
+text	play	canvas	477,64,803,94	46.5	13.31	inside	ARÈNE MUNICIPALE
+text	play	canvas	17,7,447,23	24.0	14.47	inside	DUEL 1/8 · LÉGAL : arbitre à 20 % de vie
+text	play	canvas	908,8,1260,23	24.0	11.98	inside	Mise 8 · Prime 42 · Caisse 32 cr.
+text	play	canvas	33,52,187,73	30.0	14.32	inside	Braise (toi)
+text	play	canvas	32,81,128,96	24.0	14.32	inside	Vie 54/60
+text	play	canvas	33,104,139,123	24.0	14.32	inside	Énergie 86
+text	play	canvas	32,129,236,144	24.0	14.32	inside	Moral 66 · combatif
+text	play	canvas	32,164,175,177	22.5	5.92	inside	Aucune blessure
+text	play	canvas	881,53,958,73	30.0	14.32	inside	Nugget
+text	play	canvas	1120,82,1225,95	22.5	5.92	inside	à vue d’œil
+text	play	canvas	881,107,1171,122	24.0	14.32	inside	Frais · il a l’air combatif
+text	play	canvas	881,134,1030,147	22.5	5.92	inside	Rien de visible.
+text	play	canvas	880,160,1043,176	22.5	5.92	inside	Style : équilibré
+text	play	canvas	24,464,398,481	24.0	6.04	inside	Tu encourages Braise. Il se redresse.
+text	play	canvas	25,488,398,505	24.0	6.04	inside	Braise tente Coup d'ergot... et rate.
+text	play	canvas	25,512,347,529	24.0	14.60	inside	Nugget : Coup de bec ! 6 dégâts.
+text	play	canvas	35,564,201,584	28.5	14.51	inside	1. Coup de bec
+text	play	canvas	34,594,245,610	22.5	6.00	inside	6-9 dég · 95 % · -8 én
+text	play	canvas	395,564,573,584	28.5	10.57	inside	2. Coup d'ergot
+text	play	canvas	394,594,624,610	22.5	9.25	inside	9-14 dég · 85 % · -14 én
+text	play	canvas	34,646,201,666	28.5	14.51	inside	3. Bond griffu
+text	play	canvas	35,676,273,692	22.5	6.00	inside	14-22 dég · 62 % · -22 én
+text	play	canvas	394,646,621,662	28.5	14.51	inside	4. Battre des ailes
+text	play	canvas	394,676,576,692	22.5	6.00	inside	Garde + énergie +30
+text	play	canvas	740,540,807,553	22.5	6.04	inside	Soutien
+text	play	canvas	753,570,883,586	24.0	14.51	inside	E. Encourager
+text	play	canvas	752,589,844,601	19.5	6.00	inside	+moral +déf
+text	play	canvas	753,621,864,635	24.0	14.51	inside	P. Pression
+text	play	canvas	752,641,878,655	19.5	6.00	inside	+atq +vit -préc
+text	play	canvas	752,674,803,687	24.0	12.33	inside	Aucun
+text	play	canvas	1040,588,1230,608	28.5	11.06	inside	Espace : valider
+text	play	canvas	1059,659,1210,674	24.0	10.26	inside	A : abandonner
+text	play	canvas	1047,683,1223,697	19.5	5.88	inside	mise perdue, coq sauf
+screen	play	drawn
+shot	play	prototypes/ergots/evidence/play.png
+responds	changed	34

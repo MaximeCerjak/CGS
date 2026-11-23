@@ -1,0 +1,94 @@
+# Game Brief: Ergots *(guessed)*
+
+## In your words
+> Dans un futur dystopique, la plupart des animaux sauvages ont disparu. Il reste surtout des animaux d'élevage, dont les poules et les coqs. On incarne l'aîné d'une fratrie dans une ville qui ressemble à un bidonville du futur. Il a un petit frère et une petite sœur. Son père est mort ou disparu, on ne le connaît pas. Sa mère travaille dur pour faire vivre la famille et le personnage veut l'aider à subvenir à leurs besoins.
+>
+> Sa mère possède quelques poules. Une connaissance lui propose de participer à des combats de coqs. C'est le déclencheur de l'aventure. Au fil des duels, le joueur gagne de l'argent, se fait une réputation et développe une écurie. Il peut acquérir des coqs plus rares et améliorer les conditions de vie de sa famille.
+>
+> Ce qui me donne envie d'y jouer, c'est de gérer mon écurie, de personnaliser l'apparence et les stats de mes coqs, de vivre les duels et de suivre une histoire qui a du sens, m'embarque et me challenge.
+>
+> « Si il y a une chose que j'aimerais tester c'est le combat de coq, c'est le coeur du jeu. »
+>
+> Réponses : 1. Ambiance : ok (tension posée) · 2. Apparence : « le proto peut être en pixel art, bidonville futuriste comme tu l'as décrit, on fera le choix du style pour le mvp » · 3. Soutien : ok · 4. Abandon clandestin : ok (refusé) · 5. Entre deux duels : ok · 6. Victoire et défaite : ok · 7. Langue : ok (français)
+>
+> Décisions détaillées : `design/concept-decisions.md`.
+
+**Pitch:** Dans un bidonville du futur, tu fais combattre tes coqs pour payer le loyer, et à chaque tour tu choisis jusqu'où risquer leur vie.
+
+**Genre:** combat de créatures au tour par tour, centré sur la prise de risque (sans capture de créatures).
+
+**Controls:** à la souris : cliquer une attaque et un soutien, puis valider. Au clavier : 1 à 4 pour les attaques, E pour encourager, P pour mettre la pression, A pour abandonner. *(guessed)*
+
+**Question:** Les duels sont-ils prenants, et le choix entre continuer et abandonner crée-t-il de la tension, sous deux niveaux de risque (règles légales et règles clandestines) ?
+
+**Hooks:** chaque duel est un pari dont la mise est vivante. Un coq mort ne revient pas, et le loyer, lui, tombe quoi qu'il arrive.
+
+**Intent:**
+
+## Look and references
+- Look : pixel art de bidonville futuriste. Des tôles rouillées, des néons fatigués qui grésillent, et une palette terne (rouille, gris béton, brun boueux) où seuls ressortent les coqs (couleurs vives et saturées) et le sang (le seul rouge pur de l'écran). Des accents de néon cyan et magenta sur les enseignes. L'arène est une fosse de terre entourée de grillage, avec le public en silhouettes sombres derrière. Signature : le néon de l'arène qui grésille et clignote quand un coup porte. Chaque coq a sa silhouette propre (crête, queue, posture), lisible à taille de jeu. Chaque personnage est dessiné, sans émoji ni simples cercles.
+- References : Pokémon (le combat au tour par tour avec un menu d'attaques, mais avec une interface différente, pour ne pas en faire une pâle copie).
+- View : 2D · Camera : un écran de combat fixe, ton coq de dos à gauche et l'adversaire de face à droite. Un écran d'entre-deux-duels montre le poulailler de fortune.
+
+## First minute
+Le joueur arrive dans le poulailler de fortune et voit ses trois coqs, chacun avec son nom, son portrait et ses stats. Une ligne en haut indique : « Loyer : 300 crédits, à payer avant le duel 6. Tu as 40. » Il choisit un coq, puis le circuit légal pour le duel 1, et entre dans l'arène. Les néons grésillent et la foule s'agite derrière le grillage. Il choisit une attaque, dont il voit la précision et la fourchette de dégâts, et un soutien (encourager ou mettre la pression), puis valide. Il voit le coup porter ou rater. Le sprite de l'adversaire change : il hésite. Il comprend qu'il peut lire le combat. Il gagne, encaisse ses gains, puis revient à l'écran d'entre-deux-duels. Là, il découvre que le duel clandestin rapporte trois fois plus, mais se joue à mort. C'est le premier moment où le principe du jeu se révèle.
+
+## Challenge
+La première vraie menace arrive au duel 3 ou 4 : un adversaire plus fort, qui blesse. Le coq blessé perd en stats tant qu'il n'est pas soigné. Soit on paie les soins, et cet argent manque pour le loyer, soit on le laisse sauter des duels. C'est là que le circuit clandestin devient tentant. Une défaite dans le circuit légal coûte de l'argent et des blessures. Une défaite dans le circuit clandestin coûte le coq, pour toujours. Le loyer tombe avant le duel 6, et les duels 7 et 8 opposent les adversaires les plus forts.
+
+## Core loop
+- Choisir un coq, un circuit (légal ou clandestin) et, au besoin, payer des soins.
+- Combattre au tour par tour : à chaque tour, un ordre et un soutien, en lisant l'état de l'adversaire.
+- Quand ça tourne mal : continuer ou abandonner dans le circuit légal, aller au bout dans le circuit clandestin.
+- Encaisser les gains, ou enterrer son coq. Préparer le loyer, puis passer au duel suivant.
+
+## Goal & fail state
+- On gagne en payant le loyer avant le duel 6, puis en terminant le duel 8 avec au moins un coq vivant.
+- On perd si on ne peut pas payer le loyer, ou si tous ses coqs sont morts.
+
+## Features
+- [x] Un duel au tour par tour : 4 attaques par coq, avec précision et fourchette de dégâts visibles, esquives et coups ratés.
+- [x] Le soutien de l'entraîneur : encourager ou mettre la pression, en plus de l'ordre, avec un effet sur l'état d'esprit, qui modifie les stats de combat.
+- [x] Une lecture partielle de l'adversaire : une jauge approximative, un sprite qui change selon son état (hésitant, blessé, apeuré) et des lignes de texte.
+- [x] Deux règles de combat : légales (l'arbitre arrête le combat avant la mort, abandon permis, gains faibles) et clandestines (combat jusqu'à la mort, abandon refusé, gains bien plus élevés).
+- [x] La mort définitive, et des blessures qui durent après le combat (malus sur les stats, soins payants ou duels sautés).
+- [x] L'écran entre deux duels : choix du coq et du circuit, soins, argent, et loyer dû avant le duel 6 (version simplifiée).
+- [x] 3 coqs joueurs aux profils distincts, et 8 adversaires de difficulté croissante, avec au moins 4 façons de combattre différentes.
+
+## Your systems
+- duel au tour par tour · in the slice
+- soutien de l'entraîneur et état d'esprit · in the slice
+- circuits légal et clandestin · in the slice
+- mort définitive et blessures · in the slice
+- argent et loyer · thin stand-in
+- soins · in the slice
+- élevage, logement, alimentation, maladies · later
+- entraînement en duo · later
+- armes et protections · later
+- famille, dilemmes et relations · later
+- horloge et calendrier · later
+- réputation dans les deux milieux · later
+- histoire, demi-frère, fins · later
+- trois modes de sauvegarde · later
+
+## Keep
+-
+
+## Avoid
+- Une pâle copie de Pokémon : ni ses noms, ni ses créatures, ni son interface.
+- La capture de créatures : les coqs sont élevés ou achetés, pas capturés.
+- La défaite sans conséquence : un coq mort ne revient pas.
+- Une « essence » récupérable sur un coq mort.
+
+## Out of scope
+- Élevage, reproduction, logement et alimentation : add it as a feature.
+- Entraînement en duo : add it as a feature.
+- Armes et protections : add it as a feature.
+- Boutique et objets : change it after play.
+- Famille, dilemmes, horloge, réputation : grow it.
+- L'histoire (le demi-frère, le contact, les deux fins) : grow it.
+- Les trois modes de sauvegarde : grow it.
+
+## Build order
+1. La tranche jouable : les 8 duels enchaînés, avec les deux règles de combat, l'écran entre deux duels, le loyer, la victoire et la défaite.
+2. Ensuite : affiner la lecture de l'adversaire et l'équilibrage des gains après les premières parties.
