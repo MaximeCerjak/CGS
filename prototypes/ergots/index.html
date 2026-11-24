@@ -242,15 +242,20 @@ function foeTraits(fs) {
   if (fs.hp >= 74) t.push('endurant');
   return t.length ? t.join(' · ') : 'sans point fort marqué';
 }
-function matchup(c, fs) { // estimation, jamais de chiffres adverses
-  const s = c.src, out = [];
+function matchup(c, fs) { // estimation en phrase complète, jamais de chiffres adverses
+  const s = c.src, parts = [];
   const ds = s.spd * injuryMult(c, 'spd') - fs.spd;
-  out.push(ds > 1.5 ? 'plus rapide' : ds < -1.5 ? 'plus lent' : 'aussi rapide');
+  parts.push(ds > 1.5 ? ['est plus rapide', 1] : ds < -1.5 ? ['est plus lent', -1] : ['est aussi rapide', 0]);
   const mine = s.atk * injuryMult(c, 'atk') / fs.def, his = fs.atk / (s.def * injuryMult(c, 'def'));
-  out.push(mine > his * 1.12 ? 'frappe plus fort' : his > mine * 1.12 ? 'subira plus' : 'à armes égales');
+  parts.push(mine > his * 1.12 ? ['frappe plus fort que lui', 1] : his > mine * 1.12 ? ['encaisse moins bien', -1] : ['leurs coups se valent', 0]);
   const dh = s.hp - fs.hp;
-  if (dh < -12) out.push('moins endurant'); else if (dh > 12) out.push('plus endurant');
-  return out.join(' · ');
+  if (dh < -12) parts.push(['tient moins longtemps', -1]); else if (dh > 12) parts.push(['tient plus longtemps', 1]);
+  let out = `Face à ${fs.src.name}, ${s.name} ${parts[0][0]}`;
+  for (let i = 1; i < parts.length; i++) {
+    const last = i === parts.length - 1, mixed = parts[i][1] * parts[i - 1][1] < 0;
+    out += (mixed ? ', mais ' : last ? ' et ' : ', ') + parts[i][0];
+  }
+  return out + '.';
 }
 // ---- Configurations d'équilibrage ----
 const PRESETS = window.PRESETS;
@@ -635,14 +640,14 @@ function drawYard() {
       const s = c.src;
       wrap(s.blurb, x + 186, y + 56, 196, 14, C.dim);
       [`Vie ${s.hp}`, `Attaque ${s.atk}`, `Défense ${s.def}`, `Vitesse ${s.spd}`, `Victoires ${c.wins}`].forEach((l, k) => text(l, x + 186, y + 106 + k * 22, 17, C.text, 'left'));
-      if (tune.foeInfo >= 2) wrap(`Contre lui : ${matchup(c, foeStats(state.duelNo, state.circuit))}`, x + 16, y + 212, 368, 14, '#d8c89a');
+      if (tune.foeInfo >= 2) wrap(matchup(c, foeStats(state.duelNo, state.circuit)), x + 16, y + 208, 368, 14, '#d8c89a');
       if (c.injuries.length) {
-        c.injuries.forEach((inj, k) => text(`${R.injuries[inj.id].name} (repos ${inj.left})`, x + 16, y + 254 + k * 18, 15, C.warn, 'left'));
+        c.injuries.forEach((inj, k) => text(`${R.injuries[inj.id].name} (repos ${inj.left})`, x + 16, y + 272 + k * 18, 13, C.warn, 'left'));
         const cost = tune.healCost * c.injuries.length;
-        frameBox(x + 230, y + 240, 154, 44, C.warn, 'rgba(40,24,10,0.95)', 2);
-        text(`S. Soigner ${cost}`, x + 307, y + 262, 16, C.warn);
-        button(x + 230, y + 240, 154, 44, 'heal' + i);
-      } else text('En forme', x + 16, y + 272, 16, C.ok, 'left');
+        frameBox(x + 230, y + 258, 154, 36, C.warn, 'rgba(40,24,10,0.95)', 2);
+        text(`S. Soigner ${cost}`, x + 307, y + 276, 16, C.warn);
+        button(x + 230, y + 258, 154, 36, 'heal' + i);
+      } else text('En forme', x + 16, y + 280, 16, C.ok, 'left');
     }
     button(x, y, w, 230, 'sel' + i);
   });
