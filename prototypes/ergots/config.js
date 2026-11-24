@@ -54,6 +54,18 @@ window.CONFIG = {
   critMult: { value: 1.5, min: 1, max: 3, step: 0.1 },
   intRepeatConsec: { value: 20, min: 0, max: 60, step: 1 },      // intelligence : esquive gagnée (× int/100) contre la même attaque deux fois de suite
   intRepeatSeen: { value: 6, min: 0, max: 30, step: 1 },         // ... contre une attaque déjà vue dans le combat
+  vifDodgeMult: { value: 0.5, min: 0, max: 1, step: 0.05 },     // attaque vive : part de l'esquive adverse qui joue
+  heavyDefMult: { value: 0.6, min: 0, max: 1, step: 0.05 },     // attaque lourde : part de la défense adverse qui compte
+  heavySpdDodge: { value: 0.3, min: 0, max: 1, step: 0.05 },     // attaque lourde : esquive gagnée par point de vitesse d'avance de la cible
+  precReadBase: { value: 90, min: 0, max: 150, step: 5 },       // attaque précise : au-dessus de ce seuil d'intelligence, la cible la lit...
+  precReadPerPoint: { value: 0.25, min: 0, max: 1, step: 0.05 }, // ... et gagne ceci d'esquive par point
+  armorPerDef: { value: 0.06, min: 0, max: 0.2, step: 0.01 },    // dégâts absorbés par point de défense (attaque vive ; moitié pour une précise)
+  damageScale: { value: 0.75, min: 0.3, max: 2, step: 0.05 },   // multiplicateur global des dégâts : la durée des combats
+  minHit: { value: 35, min: 0, max: 80, step: 1 },              // chance de toucher plancher (%), quelles que soient l'esquive et la lecture
+  streakBonus: { value: 12, min: 0, max: 40, step: 1 },          // + chance de toucher par échec d'affilée : l'attaquant finit par trouver l'ouverture
+  fatigueTurn: { value: 12, min: 4, max: 40, step: 1 },          // après ce tour, les coqs s'épuisent...
+  fatigueDamage: { value: 0.1, min: 0, max: 0.5, step: 0.01 },   // ... et chaque tour ajoute cette part aux dégâts
+  aiLearn: { value: 0.85, min: 0, max: 1, step: 0.05 },          // chance que l'IA abandonne une attaque qui a trop échoué
   intFeintBase: { value: 90, min: 0, max: 150, step: 5 },        // au-dessus de ce seuil, l'intelligence peut anticiper une feinte...
   intFeintPerPoint: { value: 0.006, min: 0, max: 0.02, step: 0.001 }, // ... avec cette chance par point
 
@@ -95,21 +107,29 @@ window.ROSTER = {
   // Profil de chaque race : plafonds par défaut. PDV et énergie ont leurs propres plafonds ;
   // les 7 stats de combat (vit à int) comptent dans le total, sur 1 050 au maximum.
   races: {
-    leghorn:  { name: 'Leghorn',  role: 'sprinteur',   hp: 270, en: 190, spd: 150, def: 75,  atk: 105, esq: 135, prec: 125, crit: 110, int: 100 },
-    brahma:   { name: 'Brahma',   role: 'poids lourd', hp: 440, en: 120, spd: 70,  def: 150, atk: 150, esq: 60,  prec: 125, crit: 135, int: 115 },
-    sebright: { name: 'Sebright', role: 'feinteur',    hp: 210, en: 165, spd: 120, def: 55,  atk: 65,  esq: 150, prec: 105, crit: 110, int: 145 },
-    houdan:   { name: 'Houdan',   role: 'contreur',    hp: 320, en: 150, spd: 95,  def: 120, atk: 110, esq: 95,  prec: 150, crit: 140, int: 135 },
-    phenix:   { name: 'Phénix',   role: 'danseur',     hp: 265, en: 200, spd: 125, def: 70,  atk: 90,  esq: 150, prec: 130, crit: 115, int: 120 },
+    leghorn:  { name: 'Leghorn', signature: 'rafale',  role: 'sprinteur',   hp: 270, en: 190, spd: 150, def: 75,  atk: 105, esq: 135, prec: 125, crit: 110, int: 100 },
+    brahma:   { name: 'Brahma', signature: 'ecrasement',   role: 'poids lourd', hp: 440, en: 120, spd: 70,  def: 150, atk: 150, esq: 60,  prec: 125, crit: 135, int: 115 },
+    sebright: { name: 'Sebright', signature: 'sournois', role: 'feinteur',    hp: 210, en: 165, spd: 120, def: 55,  atk: 65,  esq: 150, prec: 105, crit: 110, int: 145 },
+    houdan:   { name: 'Houdan', signature: 'riposte',   role: 'contreur',    hp: 320, en: 150, spd: 95,  def: 120, atk: 110, esq: 95,  prec: 150, crit: 140, int: 135 },
+    shamo:    { name: 'Shamo', signature: 'assaut',    role: 'combattant rare', rare: true, hp: 400, en: 160, spd: 110, def: 125, atk: 160, esq: 85, prec: 135, crit: 140, int: 115 },
+    phenix:   { name: 'Phénix', signature: 'danse',   role: 'danseur',     hp: 265, en: 200, spd: 125, def: 70,  atk: 90,  esq: 150, prec: 130, crit: 115, int: 120 },
   },
+  // Attaques communes (toutes les races) et attaques propres à une race (race: ...).
   moves: {
-    bec:    { name: 'Coup de bec',      min: 15, max: 23,  acc: 95, cost: 12 },
-    ergot:  { name: "Coup d'ergot",     min: 23, max: 35,  acc: 85, cost: 21 },
-    bond:   { name: 'Bond griffu',      min: 35, max: 55, acc: 62, cost: 33 },
-    feinte: { name: 'Feinte',           min: 8, max: 13,  acc: 92, cost: 15, moraleHit: 15 },
+    bec:    { name: 'Coup de bec', kind: 'vif',       min: 21, max: 32, acc: 95, cost: 12 },
+    ergot:  { name: "Coup d'ergot", kind: 'precis',   min: 32, max: 49, acc: 85, cost: 21 },
+    bond:   { name: 'Bond griffu', kind: 'lourd',     min: 49, max: 77, acc: 62, cost: 33 },
+    feinte: { name: 'Feinte', kind: 'vif',            min: 11, max: 18, acc: 92, cost: 15, moraleHit: 15 },
     ailes:  { name: 'Battre des ailes', buff: 'guard', acc: 100, cost: 0, energyGain: 45, moraleGain: 5 },
-    ruee:   { name: 'Ruée aveugle',     min: 45, max: 70, acc: 50, cost: 42, missMorale: 5 },
-    oeil:   { name: "Viser l'œil",      min: 13, max: 20,  acc: 78, cost: 18, injury: 'oeil', injuryBoost: 2 },
-    garde:  { name: 'Esquive basse',    buff: 'dodge', acc: 100, cost: 0, energyGain: 22, dodge: 30 },
+    ruee:   { name: 'Ruée aveugle', kind: 'lourd',    min: 63, max: 98, acc: 50, cost: 42, missMorale: 5 },
+    oeil:   { name: "Viser l'œil", kind: 'precis',    min: 18, max: 28, acc: 78, cost: 18, injury: 'oeil', injuryBoost: 2 },
+    garde:  { name: 'Esquive basse', buff: 'dodge', acc: 100, cost: 0, energyGain: 22, dodge: 30 },
+    rafale:    { name: 'Rafale de becs', race: 'leghorn', kind: 'vif', hits: 3, min: 9, max: 14, acc: 90, cost: 24 },
+    ecrasement:{ name: 'Écrasement', race: 'brahma', kind: 'lourd', min: 58, max: 85, acc: 52, cost: 40, ignoreGuard: true },
+    sournois:  { name: 'Coup sournois', race: 'sebright', kind: 'vif', min: 20, max: 28, acc: 92, cost: 16, ignoreArmor: true, moraleHit: 8 },
+    riposte:   { name: 'Riposte', race: 'houdan', kind: 'precis', min: 32, max: 46, acc: 90, cost: 20, riposte: 1.7 },
+    danse:     { name: 'Pas de danse', race: 'phenix', buff: 'dodge', acc: 100, cost: 0, energyGain: 10, dodge: 35, foeMorale: 8 },
+    assaut:    { name: 'Assaut du combattant', race: 'shamo', kind: 'lourd', min: 60, max: 90, acc: 68, cost: 38 },
   },
   injuries: {
     aile:  { name: 'Aile froissée',   stat: 'spd',  sign: 'traîne une aile' },
@@ -119,40 +139,42 @@ window.ROSTER = {
   },
   // look : body round|slim|big · crest single|rose|mohawk|scar · tail sickle|fan|stub|spiky · legs long|short
   coqs: [
-    { id: 'braise', name: 'Braise', race: 'houdan', morale: 62, moves: ['bec', 'ergot', 'bond', 'ailes'],
+    { id: 'braise', name: 'Braise', race: 'houdan', morale: 62, moves: ['bec', 'ergot', 'riposte', 'ailes'],
       look: { body: 'round', crest: 'single', tail: 'sickle', legs: 'long', c: { body: '#d8572a', wing: '#8e2f17', tail: '#1f7a62', hackle: '#f3a635', crest: '#b8323c' } } },
-    { id: 'lame', name: 'Lame', race: 'leghorn', morale: 55, moves: ['bec', 'oeil', 'feinte', 'ergot'],
+    { id: 'lame', name: 'Lame', race: 'leghorn', morale: 55, moves: ['rafale', 'ergot', 'oeil', 'garde'],
       look: { body: 'slim', crest: 'mohawk', tail: 'spiky', legs: 'long', c: { body: '#33406e', wing: '#1a2142', tail: '#2fd0e6', hackle: '#59d8ea', crest: '#e0408f' } } },
-    { id: 'grospaul', name: 'Gros-Paul', race: 'brahma', morale: 66, moves: ['ergot', 'ruee', 'bond', 'ailes'],
+    { id: 'grospaul', name: 'Gros-Paul', race: 'brahma', morale: 66, moves: ['ergot', 'bond', 'ecrasement', 'ailes'],
       look: { body: 'big', crest: 'rose', tail: 'fan', legs: 'short', c: { body: '#efe6cf', wing: '#c09c5c', tail: '#6e4a26', hackle: '#f6d474', crest: '#b8323c' } } },
   ],
   // level : part des plafonds de sa race que l'adversaire a atteinte à l'entraînement.
   // style : equilibre | prudent | brute | vicieux | fou (façon de combattre).
   foes: [
-    { name: 'Nugget', race: 'sebright', level: 0.78, style: 'equilibre', morale: 55, rumor: 'Un coq de quartier. Il apprend encore.',
-      moves: ['bec', 'ergot', 'ailes', 'feinte'],
+    { name: 'Nugget', race: 'sebright', level: 0.9, style: 'equilibre', morale: 55, rumor: 'Un coq de quartier. Il apprend encore.',
+      moves: ['bec', 'sournois', 'feinte', 'garde'],
       look: { body: 'round', crest: 'single', tail: 'stub', legs: 'short', c: { body: '#e8bd4a', wing: '#a9822a', tail: '#7a5a1e', hackle: '#f6dc84', crest: '#b8323c' } } },
-    { name: 'Tonton Plumeau', race: 'brahma', level: 0.74, style: 'prudent', morale: 60, rumor: 'Il se protège et attend que tu te fatigues.',
-      moves: ['ergot', 'ailes', 'garde', 'bec'],
+    { name: 'Tonton Plumeau', race: 'brahma', level: 0.86, style: 'prudent', morale: 60, rumor: 'Il se protège et attend que tu te fatigues.',
+      moves: ['ergot', 'ecrasement', 'ailes', 'bec'],
       look: { body: 'round', crest: 'rose', tail: 'fan', legs: 'long', c: { body: '#9c9a8c', wing: '#6c6a5e', tail: '#3c3a34', hackle: '#c8c4b0', crest: '#a8323c' } } },
-    { name: 'Kérosène', race: 'leghorn', level: 0.88, style: 'brute', morale: 70, rumor: 'Il frappe fort et ne recule jamais.',
-      moves: ['bond', 'ergot', 'ruee', 'bec'],
+    { name: 'Kérosène', race: 'leghorn', level: 0.93, style: 'brute', morale: 70, rumor: 'Il frappe fort et ne recule jamais.',
+      moves: ['rafale', 'bond', 'ruee', 'bec'],
       look: { body: 'slim', crest: 'mohawk', tail: 'sickle', legs: 'long', c: { body: '#222228', wing: '#111116', tail: '#ff8a1e', hackle: '#ff7a1a', crest: '#d8402a' } } },
     { name: 'Le Comptable', race: 'sebright', level: 0.95, style: 'vicieux', morale: 60, rumor: 'Il vise les yeux et joue avec les nerfs.',
-      moves: ['feinte', 'oeil', 'ergot', 'garde'],
+      moves: ['sournois', 'feinte', 'oeil', 'garde'],
       look: { body: 'slim', crest: 'scar', tail: 'stub', legs: 'long', c: { body: '#7c5a3a', wing: '#4e3622', tail: '#2e2016', hackle: '#cba266', crest: '#a8323c' } } },
     { name: 'Sœur Rouille', race: 'phenix', level: 0.95, style: 'fou', morale: 72, rumor: 'Blessée, elle devient folle furieuse.',
-      moves: ['ruee', 'bond', 'ergot', 'bec'],
+      moves: ['danse', 'ruee', 'bond', 'ergot'],
       look: { body: 'round', crest: 'single', tail: 'spiky', legs: 'short', c: { body: '#b44c22', wing: '#6e2a12', tail: '#4a1e0c', hackle: '#e8784a', crest: '#b8323c' } } },
     { name: 'Vieux Barnabé', race: 'houdan', level: 0.97, style: 'prudent', morale: 66, rumor: 'Un vétéran couvert de cicatrices. Patient.',
-      moves: ['ergot', 'ailes', 'bond', 'garde'],
+      moves: ['riposte', 'ergot', 'ailes', 'bond'],
       look: { body: 'big', crest: 'scar', tail: 'stub', legs: 'short', c: { body: '#d0c8b6', wing: '#9a927e', tail: '#5e584c', hackle: '#e6dec8', crest: '#a8323c' } } },
     { name: "Ergot d'Or", race: 'phenix', level: 1.03, style: 'equilibre', morale: 72, rumor: 'Le favori des parieurs. Rien ne lui manque.',
-      moves: ['ergot', 'bond', 'feinte', 'ailes'],
+      moves: ['danse', 'ergot', 'bond', 'feinte'],
       look: { body: 'slim', crest: 'single', tail: 'fan', legs: 'long', c: { body: '#e2a81e', wing: '#a8740e', tail: '#2a8c4c', hackle: '#fff0a0', crest: '#c8343e' } } },
-    { name: 'La Bétonnière', race: 'brahma', level: 1.06, style: 'brute', morale: 76, rumor: 'Une montagne. On dit qu’elle a tué six coqs.', scale: 1.15,
-      moves: ['ruee', 'bond', 'ergot', 'ailes'],
-      look: { body: 'big', crest: 'mohawk', tail: 'spiky', legs: 'short', c: { body: '#6c7074', wing: '#44484c', tail: '#2a2c2e', hackle: '#9aa0a4', crest: '#c0383e' } } },
+    { name: 'Kaiser', race: 'shamo', level: 1.0, style: 'brute', morale: 78, rumor: 'Un Shamo, une race rare. Personne ne l\u2019a encore fait reculer.', scale: 1.1,
+      moves: ['assaut', 'ruee', 'ergot', 'bec'],
+      look: { body: 'slim', crest: 'rose', tail: 'sickle', legs: 'long', c: { body: '#3a2420', wing: '#1e1210', tail: '#5c1a8a', hackle: '#c0602a', crest: '#a8323c' } },
+      clanMod: { as: { name: 'Kaiser modifié', rumor: 'Au sous-sol, on lui a greffé un bec et des ergots d\u2019acier.' }, add: { atk: 35, def: 25 },
+        look: { beak: '#b8c4cc', leg: '#8a949c', spur: '#d8e4ec' } } },
   ],
 };
 

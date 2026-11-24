@@ -143,7 +143,7 @@ function buildRooster(look, pose, wounds) {
   const key = JSON.stringify([look, pose, wounds]);
   if (spriteCache.has(key)) return spriteCache.get(key);
   const cells = new Map();
-  const put = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < GW && y < GH) cells.set(x + ',' + y, c); };
+  const put = (x, y, c) => { if (!c) return; x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < GW && y < GH) cells.set(x + ',' + y, c); };
   const ellipse = (cx, cy, rx, ry, c) => {
     for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
       for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++)
@@ -170,7 +170,7 @@ function buildRooster(look, pose, wounds) {
   }
   // pattes
   const legTop = cy + ry - 1;
-  const legCol = '#d1a83c', spur = '#6e5420';
+  const legCol = look.leg || '#d1a83c', spur = look.spur || '#6e5420';
   [cx - 1, cx + 2].forEach((lx, i) => {
     const bent = pose === 'hurt' && i === 1;
     for (let y = legTop; y <= 25; y++) put(bent && y > 22 ? lx + 1 : lx, y, legCol);
@@ -186,7 +186,7 @@ function buildRooster(look, pose, wounds) {
   const hx = cx + rx - 1 + (pose === 'scared' ? -1 : 0), hy = 7 + droop + (shortLegs ? 1 : 0);
   for (let t = 0; t <= 1; t += 0.1) { const nx = cx + rx - 3 + (hx - (cx + rx - 3)) * t, ny = cy - ry + 1 + (hy + 1 - (cy - ry + 1)) * t; ellipse(nx, ny, 1.8, 1.4, c.hackle); }
   ellipse(hx, hy, 2.6, 2.4, c.hackle);
-  put(hx + 3, hy, '#e3b448'); put(hx + 4, hy, '#e3b448'); put(hx + 3, hy + 1, '#b88a2a'); // bec
+  const bk = look.beak || '#e3b448'; put(hx + 3, hy, bk); put(hx + 4, hy, bk); put(hx + 5, hy, look.beak ? bk : null); put(hx + 3, hy + 1, look.beak ? '#6a7278' : '#b88a2a'); // bec
   put(hx + 2, hy + 2, '#a32a34'); put(hx + 2, hy + 3, '#a32a34'); // barbillon
   if (look.crest === 'single') { for (let i = -1; i <= 2; i++) put(hx + i, hy - 3, c.crest); put(hx - 1, hy - 4, c.crest); put(hx + 1, hy - 4, c.crest); put(hx + 2, hy - 5, c.crest); put(hx + 0, hy - 5, c.crest); }
   else if (look.crest === 'rose') { ellipse(hx, hy - 3, 2, 1, c.crest); }
@@ -240,8 +240,9 @@ function coqStats(c) {
 // L'adversaire du duel d, tel qu'il se présente dans ce circuit.
 function foeStats(d, circuit) {
   const f = R.foes[(d - 1) % R.foes.length], r = R.races[f.race];
-  const m = f.level * (circuit === 'clan' ? tune.clanFoeMult : 1), s = { src: f };
-  for (const k of ['hp', 'en', ...STATS]) s[k] = Math.round(r[k] * m);
+  const m = f.level * (circuit === 'clan' ? tune.clanFoeMult : 1);
+  const mod = circuit === 'clan' && f.clanMod, src = mod ? { ...f, ...mod.as, look: { ...f.look, ...mod.look } } : f, s = { src };
+  for (const k of ['hp', 'en', ...STATS]) s[k] = Math.round(r[k] * m) + (mod && mod.add[k] || 0);
   return s;
 }
 function raceTraits(s) {
@@ -300,18 +301,60 @@ function eff(f, stat) { // une stat de combat telle qu'elle est maintenant : ble
   return v;
 }
 function accOf(f, move, sup) { // précision affichée : connue du joueur, avant l'esquive adverse
-  let a = move.acc + (eff(f, 'prec') - 100) * tune.accPerPrec - (f.turn.accMalus || 0);
+  let a = move.acc + (eff(f, 'prec') - 100) * tune.accPerPrec * (!move.buff && kindOf(move) === 'precis' ? 2 : 1) - (f.turn.accMalus || 0);
   if (sup === 'pressure') a -= tune.pressureAcc;
   const md = mood(f); if (md === 'scared') a -= 15; else if (md === 'hesitant') a -= 5;
   if (!move.buff && f.energy < move.cost) a -= tune.tiredAcc;
   return Math.max(5, Math.min(100, Math.round(a)));
 }
 function dodgeOf(f) { return Math.max(0, (eff(f, 'esq') - tune.dodgeBase) * tune.dodgePerPoint) + f.dodge; }
+// Les contres : chaque nature d'attaque bute sur une stat différente.
+//  vif    (bec, feinte)  : difficile à esquiver, mais la défense en absorbe une part fixe.
+//  précis (ergot, œil)   : la précision compte double, la défense n'en absorbe que la moitié ; mais un coq malin le lit.
+//  lourd  (bond, ruée)   : traverse la défense, mais un coq plus rapide l'esquive plus facilement.
+const KIND_NAMES = { vif: 'vif', precis: 'précis', lourd: 'lourd' };
+function kindOf(m) { return m.kind || 'precis'; }
+function dodgeVs(a, b, m) { // esquive de b contre cette attaque de a : physique, puis vitesse contre une attaque lourde
+  const k = kindOf(m);
+  const phys = (dodgeOf(b) - (m.ignoreGuard ? b.dodge : 0)) * (k === 'vif' ? tune.vifDodgeMult : 1);
+  const slow = k === 'lourd' ? Math.max(0, eff(b, 'spd') - eff(a, 'spd')) * tune.heavySpdDodge
+    : k === 'precis' ? Math.max(0, eff(b, 'int') - tune.precReadBase) * tune.precReadPerPoint : 0; // un coup précis est lisible : l'intelligence le voit venir
+  return { phys, slow };
+}
+function readingVs(a, b, mid) {
+  return a.lastMove === mid ? tune.intRepeatConsec * eff(b, 'int') / 100 : a.seen.has(mid) ? tune.intRepeatSeen * eff(b, 'int') / 100 : 0;
+}
+function damageVs(a, b, m, base, atkMult = 1) { // dégâts avant critique et fatigue, et part absorbée par la défense
+  const k = kindOf(m);
+  const atkE = eff(a, 'atk') * atkMult, defE = eff(b, 'def') * (k === 'lourd' ? tune.heavyDefMult : 1) * (b.guard && !m.ignoreGuard ? tune.guardDef : 1);
+  let raw = base * 2 * atkE / (atkE + defE);
+  if (m.riposte && b.lastMissed) raw *= m.riposte;
+  const armor = m.ignoreArmor ? 0 : eff(b, 'def') * tune.armorPerDef * (k === 'vif' ? 1 : k === 'precis' ? 0.5 : 0);
+  return { raw, armor };
+}
+// Chance de toucher : jamais sous un plancher, et chaque échec d'affilée rapproche de l'ouverture.
+function hitChance(a, m, shown, dodge, reading) {
+  return Math.max(Math.min(shown, tune.minHit), shown - dodge - reading) + a.missStreak * tune.streakBonus;
+}
+function lateMult(d) { return d.turnNo > tune.fatigueTurn ? 1 + (d.turnNo - tune.fatigueTurn) * tune.fatigueDamage : 1; }
+// Dégâts d'une attaque qui touche, coup par coup (une rafale frappe plusieurs fois, la défense absorbe à chaque coup).
+function landedDamage(d, a, b, m, tired, crit) {
+  let total = 0, absorbedAll = 0;
+  for (let h = 0; h < (m.hits || 1); h++) {
+    const p = damageVs(a, b, m, m.min + Math.floor(rng() * (m.max - m.min + 1)));
+    let x = p.raw * lateMult(d) * tune.damageScale;
+    if (tired) x *= tune.tiredDamage;
+    if (crit) x *= tune.critMult;
+    absorbedAll += Math.min(x - 1, p.armor);
+    total += Math.max(1, Math.round(x - p.armor));
+  }
+  return { dmg: total, absorbed: absorbedAll };
+}
 function makeFighter(st, src, side, injuries) {
   return { name: src.name, look: src.look, moves: src.moves, side, scale: src.scale || 1, style: src.style,
     maxHp: st.hp, hp: st.hp, maxEn: st.en, energy: st.en, spd: st.spd, def: st.def, atk: st.atk, esq: st.esq,
     prec: st.prec, crit: st.crit, int: st.int, morale: src.morale, injuries, guard: false, dodge: 0, turn: {},
-    lastMove: null, seen: new Set(), raceId: src.race };
+    lastMove: null, seen: new Set(), fails: {}, missStreak: 0, maxStreak: 0, lastMissed: false, raceId: src.race };
 }
 function addInjury(f, id) {
   const ids = Object.keys(R.injuries);
@@ -326,8 +369,11 @@ function foeChoose(f, p) {
   const dmg = ms.filter(x => !x.m.buff), buffs = ms.filter(x => x.m.buff);
   const avg = x => (x.m.min + x.m.max) / 2 * x.m.acc / 100 * (x.id === f.lastMove ? 0.7 : 1);
   const best = (list, key) => list.slice().sort((a, b) => key(b) - key(a))[0];
-  const affordable = dmg.filter(x => x.m.cost <= f.energy);
-  const pool = affordable.length ? affordable : dmg;
+  const patience = { brute: 3, fou: 3, prudent: 2, vicieux: 2, equilibre: 2 }[f.style] || 2;
+  const learned = dmg.filter(x => !((f.fails[x.id] || 0) >= patience && rng() < tune.aiLearn)); // elle tire les leçons de ses échecs, pas toujours
+  const base0 = learned.length ? learned : dmg;
+  const affordable = base0.filter(x => x.m.cost <= f.energy);
+  const pool = affordable.length ? affordable : base0;
   if (f.energy < f.maxEn * 0.15 && buffs.length && rng() < 0.6) return buffs[0].id;
   switch (f.style) {
     case 'brute': return best(pool, x => x.m.max).id;
@@ -383,30 +429,32 @@ function act(d, a, b, mid) {
   if (m.buff) {
     a.energy = Math.min(a.maxEn, a.energy + (m.energyGain || 0));
     if (m.buff === 'guard') { a.guard = true; a.morale = Math.min(100, a.morale + (m.moraleGain || 0)); beat(d, `${a.name} bat des ailes et se met en garde.`, { lunge: a.side }); }
+    else if (m.foeMorale) { a.dodge = m.dodge; b.morale = Math.max(0, b.morale - m.foeMorale); beat(d, `${a.name} danse autour de ${b.name}, qui ne sait plus où regarder.`, { lunge: a.side }); }
     else { a.dodge = m.dodge; beat(d, `${a.name} se fait tout petit, prêt à esquiver.`, { lunge: a.side }); }
     return;
   }
   const shown = accOf(a, m);
-  const dodge = dodgeOf(b);
+  const dv = dodgeVs(a, b, m), dodge = dv.phys + dv.slow;
   const reading = consec ? tune.intRepeatConsec * eff(b, 'int') / 100 : seen ? tune.intRepeatSeen * eff(b, 'int') / 100 : 0;
-  const roll = rng() * 100;
-  if (roll >= shown - dodge - reading) {
+  const roll = rng() * 100, chance = hitChance(a, m, shown, dodge, reading), streak = a.missStreak;
+  if (roll >= chance) {
     a.morale = Math.max(0, a.morale - tune.moraleMissed - (m.missMorale || 0));
-    let why;
-    if (roll >= shown) why = 'et rate.';
-    else if (roll >= shown - dodge) why = `${b.name} esquive !`;
-    else why = `${b.name} l’a vue venir et esquive.`;
-    beat(d, `${a.name} tente ${m.name}... ${why}`, { lunge: a.side, miss: true });
-    if (roll < shown - dodge && reading && !d.sim) d.history.push(`   (lecture : ${b.name} a lu ${consec ? 'la même attaque deux fois de suite' : 'une attaque déjà vue'})`);
+    a.fails[mid] = (a.fails[mid] || 0) + 1;
+    a.missStreak++; a.maxStreak = Math.max(a.maxStreak, a.missStreak); a.lastMissed = true;
+    let txt;
+    if (roll >= shown) txt = `${a.name} tente ${m.name}... et rate.`;
+    else if (roll >= shown - dv.phys) txt = `${a.name} tente ${m.name}... ${b.name} esquive !`;
+    else if (roll >= shown - dodge) txt = kindOf(m) === 'lourd' ? `${a.name} tente ${m.name}, trop lent : ${b.name} l\u2019évite sans peine.` : `${a.name} tente ${m.name}, mais ${b.name} a lu le geste et l\u2019évite.`;
+    else if (consec) txt = `${a.name} utilise ${m.name}, encore. Trop prévisible : il rate son coup.`;
+    else txt = `${b.name} a déjà vu ce ${m.name} et l\u2019évite.`;
+    beat(d, txt, { lunge: a.side, miss: true });
     return;
   }
-  const base = m.min + Math.floor(rng() * (m.max - m.min + 1));
-  const atkE = eff(a, 'atk'), defE = eff(b, 'def') * (b.guard ? tune.guardDef : 1);
-  let dmg = base * 2 * atkE / (atkE + defE);
-  if (tired) dmg *= tune.tiredDamage;
+  const riposte = m.riposte && b.lastMissed;
   const crit = rng() < eff(a, 'crit') * tune.critPerPoint;
-  if (crit) dmg *= tune.critMult;
-  dmg = Math.max(1, Math.round(dmg));
+  const ld = landedDamage(d, a, b, m, tired, crit), dmg = ld.dmg, absorbed = ld.absorbed;
+  a.missStreak = 0; a.lastMissed = false;
+  a.fails[mid] = dmg < (m.min + m.max) / 4 ? (a.fails[mid] || 0) + 1 : 0;
   b.guard = false;
   b.hp -= dmg;
   b.hp = d.circuit === 'legal' ? Math.max(1, b.hp) : Math.max(0, b.hp);
@@ -415,8 +463,10 @@ function act(d, a, b, mid) {
   if (moraleHit && rng() < Math.max(0, eff(b, 'int') - tune.intFeintBase) * tune.intFeintPerPoint) { moraleHit = 0; anticipated = true; }
   b.morale = Math.max(0, b.morale - (big ? tune.moraleBigHit : tune.moraleSmallHit) - moraleHit);
   a.morale = Math.min(100, a.morale + tune.moraleLanded);
-  let txt = `${a.name} : ${m.name} ! ${crit ? 'Coup critique, ' : ''}${dmg} dégâts.`;
+  let txt = `${streak >= 2 ? `${a.name} trouve enfin l\u2019ouverture. ` : ''}${a.name} : ${m.name} !${riposte ? ' Riposte,' : ''}${m.hits ? ` ${m.hits} coups,` : ''} ${crit ? 'Coup critique, ' : ''}${dmg} dégâts.`;
   if (m.moraleHit) txt += anticipated ? ` ${b.name} a anticipé la feinte.` : ` ${b.name} se trouble.`;
+  if (absorbed >= dmg) txt += ` Le coup glisse sur sa défense.`;
+  if (m.ignoreArmor && kindOf(m) === 'vif') txt += ' Il frappe là où la défense ne protège pas.';
   if (tired) txt += ' (à bout de souffle)';
   if (dmg >= b.maxHp * tune.injuryHitFrac || m.injury) {
     let ch = d.circuit === 'clan' ? tune.injuryChanceClan : tune.injuryChanceLegal;
@@ -451,6 +501,7 @@ function endOfTurn(d) {
     d.result = 'victoire'; beat(d, `L’entraîneur d’en face jette l’éponge. Victoire !`, { ref: true });
   }
   d.turnNo++;
+  if (d.turnNo === tune.fatigueTurn + 1) beat(d, 'Les deux coqs s\u2019épuisent : chaque coup porte davantage.');
   if (!d.sim) d.history.push(`— Tour ${d.turnNo} —`);
 }
 
@@ -489,11 +540,12 @@ function smartChoose(P, E) {
   for (const id of P.moves) {
     const m = R.moves[id];
     if (m.buff) continue;
-    const reading = P.lastMove === id ? tune.intRepeatConsec * eff(E, 'int') / 100 : P.seen.has(id) ? tune.intRepeatSeen * eff(E, 'int') / 100 : 0;
+    const reading = readingVs(P, E, id);
     for (const sup of ['none', 'pressure']) {
-      const hit = Math.max(0, accOf(P, m, sup) - dodgeOf(E) - reading) / 100;
-      const atk = eff(P, 'atk') * (sup === 'pressure' ? tune.pressureAtk : 1), def = eff(E, 'def') * (E.guard ? tune.guardDef : 1);
-      let ev = (m.min + m.max) / 2 * 2 * atk / (atk + def) * hit * (1 + eff(P, 'crit') * tune.critPerPoint * (tune.critMult - 1));
+      const dv = dodgeVs(P, E, m);
+      const hit = Math.min(1, hitChance(P, m, accOf(P, m, sup), dv.phys + dv.slow, reading) / 100);
+      const dm = damageVs(P, E, m, (m.min + m.max) / 2, sup === 'pressure' ? tune.pressureAtk : 1);
+      let ev = Math.max(1, dm.raw * tune.damageScale * (1 + eff(P, 'crit') * tune.critPerPoint * (tune.critMult - 1)) - dm.armor) * (m.hits || 1) * hit;
       if (P.energy < m.cost) ev *= tune.tiredDamage;
       if (m.moraleHit) ev *= 1.15;
       if (!best || ev > best.ev) best = { move: id, sup, ev };
@@ -725,11 +777,11 @@ function drawDuel() {
   P.moves.forEach((id, i) => {
     const m = R.moves[id], x = 20 + (i % 2) * 340, y = 548 + Math.floor(i / 2) * 82, sel = d.move === i;
     frameBox(x, y, 330, 72, sel ? C.gold : '#4a3e36', sel ? 'rgba(60,44,20,0.95)' : 'rgba(20,16,16,0.95)');
-    text(`${i + 1}. ${m.name}${P.lastMove === id ? ' (répétée)' : ''}`, x + 12, y + 20, 18, busy ? C.dim : C.text, 'left');
+    text(`${i + 1}. ${m.race ? '★ ' : ''}${m.name}${P.lastMove === id ? ' (répétée)' : ''}`, x + 12, y + 20, 18, busy ? C.dim : m.race ? C.gold : C.text, 'left');
     const tired = !m.buff && P.energy < m.cost;
     const line = m.buff ? (m.buff === 'guard' ? `Garde · énergie +${m.energyGain}` : `Esquive +${m.dodge} · énergie +${m.energyGain}`)
-      : `${m.min}-${m.max} dég · ${accOf(P, m, d.sup)} % · -${m.cost} én${tired ? ' !' : ''}`;
-    text(line, x + 12, y + 50, 15, tired ? C.warn : sel ? '#e0d2b0' : C.dim, 'left', false);
+      : m.buff ? '' : `${KIND_NAMES[kindOf(m)]} · ${m.hits ? m.hits + '×' : ''}${m.min}-${m.max} dég · ${accOf(P, m, d.sup)} % · -${m.cost} én${tired ? ' !' : ''}`;
+    text(line, x + 12, y + 50, 14, tired ? C.warn : sel ? '#e0d2b0' : C.dim, 'left', false);
     button(x, y, 330, 72, 'move' + i);
   });
   // soutien
@@ -895,7 +947,7 @@ const scenes = {
     update(dt) { state.t += dt; },
     draw() {
       clear('#1a1416');
-      const all = [...R.coqs.map(c => [c, 'Joueur']), ...R.foes.map(f => [f, 'Adversaire'])];
+      const all = [...R.coqs.map(c => [c, 'Joueur']), ...R.foes.map(f => [f, 'Adversaire']), ...R.foes.filter(f => f.clanMod).map(f => [{ ...f, ...f.clanMod.as, look: { ...f.look, ...f.clanMod.look } }, 'Clandestin'])];
       all.forEach(([c, kind], i) => {
         const x = 110 + (i % 6) * 210, y = 300 + Math.floor(i / 6) * 330;
         drawRooster(c.look, x, y, 6, 1);

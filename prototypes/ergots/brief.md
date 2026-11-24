@@ -26,6 +26,10 @@
 
 > After play: « j'ai gagner toutes les autres parties en clandestin, meme quand gros-paul était grand outsider avec une cote à 5 j'ai gagné [...] ce qui est un défaut c'est que j'ai tué mon adversaire en 3 coups seulement sans être inquiété » ; « Fait les corrections 1, 2 et 3, l'argent on s'en fou pour le prototype. Ensuite [...] je te laisserai la responsabilités de tester le plus de combinaisons de combat possible pour évaluer l'équilibrage »
 
+> After play: « pour moi c'est normal que certaines races puissent tout simplement avoir des avantages [...] un pokemon de type eau plafonné à 500 peut battre un pokemon de type feu plafonné à 650. C'est ce qui fait défaut à notre système » ; « Contre par les stats, différents type d'attaque qui contre différentes type de stats et préparation pour plus tard » ; l'IA brute « apprenne de ses erreurs » ; indice sur la répétition : « Lame utilise coup d'ergot, encore, trop prévisible, il rate son coup » ; duel 8 : un coq rare, modifié en clandestin (solution a)
+
+> After play: « Les combats deviennent aussi peut être interminable par ce qu'on a trop réduits les dégâts. Si on se met à raté successivement plusieurs dizaines d'attaques ça peut devenir très énervant pour un joueur et ne plus du tout donné envie de jouer, il faut régler ça. Des attaques communes à toutes les races et des attaques spécifiques. »
+
 **Pitch:** Dans un bidonville du futur, tu fais combattre tes coqs pour payer le loyer, et à chaque tour tu choisis jusqu'où risquer leur vie.
 
 **Genre:** combat de créatures au tour par tour, centré sur la prise de risque (sans capture de créatures).
@@ -75,6 +79,12 @@ La première vraie menace arrive au duel 3 ou 4 : un adversaire plus fort, qui b
 - [x] Le clandestin à crédit : dettes, intérêts et représailles ; payer le loyer d'avance ; passer un duel pour laisser ses coqs se reposer.
 - [x] Le carnet : le profil d'une race n'est connu qu'après l'avoir rencontrée ; l'initiative et l'historique du duel.
 
+- [x] Les contres par nature d'attaque : vive (arrêtée par la défense), précise (lue par l'intelligence), lourde (esquivée par un coq plus rapide) ; une IA qui abandonne une attaque après plusieurs échecs ; des indices dans le journal.
+- [x] Le duel 8 : Kaiser, un Shamo rare en légal, le même avec bec et ergots d'acier en clandestin.
+
+- [x] Des attaques communes à toutes les races et une attaque propre à chaque race (★) : Rafale de becs, Écrasement, Coup sournois, Riposte, Pas de danse, Assaut du combattant.
+- [x] Contre l'agacement : une chance de toucher plancher, chaque échec d'affilée rapproche de l'ouverture, et les coqs s'épuisent après le tour 12 (chaque coup porte davantage).
+
 ## Your systems
 - duel au tour par tour · in the slice
 - soutien de l'entraîneur et état d'esprit · in the slice
@@ -86,6 +96,7 @@ La première vraie menace arrive au duel 3 ou 4 : un adversaire plus fort, qui b
 - bookmaker et cotes · in the slice
 - dettes et représailles · thin stand-in
 - carnet des races · thin stand-in
+- contres par nature d'attaque · in the slice
 - élevage, logement, alimentation, maladies · later
 - entraînement en duo · later
 - armes et protections · later
