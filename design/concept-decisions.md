@@ -93,12 +93,56 @@
 - Le hasard fait partie du combat : esquives, attaques ratées, dégâts compris dans une fourchette. La précision de chaque attaque est connue : utiliser une attaque peu fiable dans une situation critique est un choix du joueur, qui en assume le résultat.
 
 ### Stats et lecture du combat
-- Stats d'un coq en duel : énergie, santé, blessures, état d'esprit.
+- Stats d'un coq en duel : énergie, santé, blessures, état d'esprit (voir aussi « Système de statistiques et races »).
 - La santé est la jauge de vie. Les blessures dégradent les stats de combat (vitesse, hargne, défense, précision, attaque, etc.).
 - L'état d'esprit agit sur les stats de combativité (défense, vitesse, etc.).
 - Le joueur voit son propre coq précisément. Il voit les mêmes stats chez l'adversaire, mais avec moins de précision : une jauge plutôt que des chiffres, un coq qui devient hésitant ou a peur, qui est blessé, dont les attaques perdent en efficacité.
 - Les signes passent par un changement du sprite d'attente (nouvel état) ou par des informations écrites, pas forcément par des animations.
 - La lecture du combat s'améliore avec l'expérience d'entraîneur.
+
+### Système de statistiques et races
+Retour de l'auteur après le prototype : les 5 stats du prototype (vie, énergie, vitesse, attaque, défense) sont trop pauvres. Le jeu doit permettre de configurer des coqs vraiment différents, avec des caractéristiques propres à chaque race.
+
+**Les statistiques**
+- **PDV** et **énergie** : chacune a son propre plafond, séparé des stats de combat.
+- **7 stats de combat** : vitesse, défense, attaque, esquive, précision, critique, intelligence.
+  - **Vitesse** : ordre d'action.
+  - **Esquive** : capacité physique à éviter un coup ; elle joue à chaque attaque.
+  - **Précision** : chance de toucher.
+  - **Critique** : chance de réaliser une attaque plus puissante.
+  - **Intelligence** : lecture du combat. Elle permet d'anticiper une feinte adverse. Elle augmente l'esquive quand l'adversaire répète une attaque : fortement si c'est la même attaque plusieurs fois de suite, légèrement si elle a déjà été utilisée dans le combat.
+- **L'état d'esprit** n'est pas une stat : il fait fluctuer l'ensemble des stats. Il est protégé par le confort (logement, alimentation) et influencé par le soutien de l'entraîneur.
+
+**Les plafonds**
+- Le plafond absolu des 7 stats de combat est de 1 050 (7 × 150).
+- Chaque race a un plafond par défaut pour chaque stat, qui définit son profil. Le total de ces plafonds est propre à la race.
+- Un poussin ne naît pas avec ses stats au maximum : il atteint les plafonds de sa race en étant entraîné.
+- L'équipement, et plus tard les prothèses, s'ajoutent par-dessus les stats plafonnées, dans une certaine limite.
+
+**La redistribution**
+- Parmi l'ensemble des points, le joueur peut en redistribuer un certain nombre d'une stat à l'autre. Valeur de départ : **50 points** (75 évoqué, à régler).
+- Une stat peut dépasser le plafond de sa race de **21 points au maximum**. Exemple : baisser la défense d'un Brahma pour augmenter son attaque ou sa vitesse au-delà de son plafond, mais de 21 points au plus.
+
+**Ce qui différencie deux coqs de la même race**
+- les variations à la naissance (aléatoires en première phase ; héritées des parents en phase ultérieure, comme décidé pour l'héritage des stats) ;
+- l'entraînement et la redistribution des points ;
+- l'équipement, puis les prothèses ;
+- les attaques sélectionnées.
+
+**Exemple de profils de races** (exemple de l'auteur, à revoir pour trouver un système efficace et amusant ; le total compte les 7 stats de combat, sur 1 050) :
+
+| Race | PDV | Énergie | Vitesse | Défense | Attaque | Esquive | Précision | Critique | Intelligence | Total / 1 050 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Leghorn · Sprinteur | 270 | 190 | 150 | 75 | 105 | 135 | 125 | 110 | 100 | 800 |
+| Brahma · Poids lourd | 440 | 120 | 70 | 150 | 150 | 60 | 125 | 135 | 115 | 805 |
+| Sebright · Feinteur | 210 | 165 | 120 | 55 | 65 | 150 | 105 | 110 | 145 | 750 |
+| Houdan · Contreur | 320 | 150 | 95 | 120 | 110 | 95 | 150 | 140 | 135 | 845 |
+| Phénix · Danseur | 265 | 200 | 125 | 70 | 90 | 150 | 130 | 115 | 120 | 800 |
+
+**Le carnet des races**
+- Connaître la race du coq adverse donne son profil combatif, à condition de l'avoir déjà rencontrée.
+- Un carnet de notes (ou une tablette) répertorie les caractéristiques des coqs combattus et de ceux dont on a entendu parler.
+- On ne rencontre pas les coqs seulement en les combattant : on peut aussi aller les voir se battre dans des tournois.
 
 ### Soutien de l'entraîneur
 - En plus de l'ordre donné au coq, l'entraîneur peut le soutenir pendant le même tour. Le soutien ne remplace pas l'ordre.
@@ -186,8 +230,18 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - Les directions possibles de la relation avec le demi-frère après la révélation (confrontation, réconciliation, autre), et sa place dans chacune des deux fins.
 - Le moment exact où le joueur découvre la trahison du demi-frère : premier tiers ou première moitié ?
 - Le scénario sans embranchements de la première phase.
+- Redistribution des stats : 50 ou 75 points ? Une stat peut-elle descendre sans limite sous le plafond de sa race (une limite de −21 évoquée) ? La répartition est-elle définitive, ou peut-on la refaire (contre de l'argent ou du temps d'entraînement) ?
+- La parade par l'intelligence, qui réduisait les dégâts avec la défense, est-elle abandonnée ?
+- Les PDV et l'énergie sont hors du budget des 7 stats : comment éviter qu'une race cumule beaucoup de PDV et un gros total (exemples : Brahma, Houdan) ?
+- Combien d'attaques un coq connaît-il, et combien en emporte-t-il en duel ?
+- Le système de statistiques complet sera-t-il testé dans le prototype ou directement dans le MVP ?
 
 ## Observations de Claude (non validées)
+- Avec le carnet, la lecture de l'adversaire se fait en deux temps : la race donne le profil général, le duel révèle le build de ce coq-là.
+- Aller observer des tournois pour remplir le carnet coûte du temps de calendrier : l'information devient une ressource, et on retrouve le dilemme central.
+- Races, stats de base et carnet rapprochent fortement le jeu de la structure de Pokémon. Ce qui le distingue : un carnet imparfait, rempli en observant, fait d'estimations plutôt que de chiffres exacts.
+- L'intelligence qui punit la répétition marche dans les deux sens : le joueur doit varier ses attaques, et peut exploiter un adversaire peu malin. Le joueur doit le voir (exemple : « Nugget a lu ton Coup d'ergot »).
+- Neuf stats, plus le moral et les blessures : l'essentiel se lit au poulailler et dans le carnet, l'écran de duel ne garde que ce qui change pendant le combat.
 - Le service demandé par la sœur et l'abandon d'un duel ont la même structure : choisir ce qu'on sacrifie. Ce pourrait être un pilier du jeu.
 - Le héros gère sa famille comme il gère son écurie. Le frère qui entraîne ses propres coqs reproduit son parcours.
 - Une boussole possible pour l'humour : la famille reste sincère, c'est le monde autour d'elle qui est grotesque.
