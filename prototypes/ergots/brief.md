@@ -17,6 +17,13 @@
 >
 > After play: « autant se concentrer sur les réglages directement à notre portée. Dans ce cas j'aimerais carrément en profiter pour que le prototype embarque la possibilité de tester plusieurs configurations d'équilibrage »
 
+>
+> After play: « Je trouve cela trop pauvre. [...] Je veux que mon jeu permettent réellement de configurer des coqs différents, je veux aussi que les coqs aient des caractéristiques propre à chaque race et que cela puisse permettre d'analyser son adversaire » (système complet : `design/concept-decisions.md`, « Système de statistiques et races »)
+>
+> After play: « à aucun moment, sauf peut être la première partie, on a envie de se lancer dans le clandestin car à chaque fois les descriptions font croire qu'on a aucune chance [...] Il me restait un combat avant le loyer, ma seule chance de payer était de gagner ce combat »
+>
+> After play: « je figerais aussi la difficulté accru des adversaires en clandestin à 15% [...] en clandestins on peut avoir des dettes et donc des représailles. Je pense même que 10 ou 12% de difficulté supplémentaires pourrait suffire. Donc intègre tout ça et le nouveau système de stat aussi. J'aime particulièrement le bookmaker »
+
 **Pitch:** Dans un bidonville du futur, tu fais combattre tes coqs pour payer le loyer, et à chaque tour tu choisis jusqu'où risquer leur vie.
 
 **Genre:** combat de créatures au tour par tour, centré sur la prise de risque (sans capture de créatures).
@@ -61,6 +68,11 @@ La première vraie menace arrive au duel 3 ou 4 : un adversaire plus fort, qui b
 - [x] Plusieurs configurations d'équilibrage à comparer (v0, A, B, C), choisies à l'écran titre, avec un historique des dernières parties.
 - [x] Des informations sur l'adversaire avant le duel : style, points forts, et comparaison estimée avec chacun de tes coqs.
 
+- [x] Le système de statistiques : PDV, énergie et 7 stats de combat (vitesse, défense, attaque, esquive, précision, critique, intelligence), 5 races aux profils distincts, redistribution de 50 points (21 au maximum au-dessus du plafond de la race).
+- [x] Le bookmaker : une cote pour chacun de tes coqs face à l'adversaire, et en clandestin une prime qui dépend de la cote.
+- [x] Le clandestin à crédit : dettes, intérêts et représailles ; payer le loyer d'avance ; passer un duel pour laisser ses coqs se reposer.
+- [x] Le carnet : le profil d'une race n'est connu qu'après l'avoir rencontrée ; l'initiative et l'historique du duel.
+
 ## Your systems
 - duel au tour par tour · in the slice
 - soutien de l'entraîneur et état d'esprit · in the slice
@@ -68,6 +80,10 @@ La première vraie menace arrive au duel 3 ou 4 : un adversaire plus fort, qui b
 - mort définitive et blessures · in the slice
 - argent et loyer · thin stand-in
 - soins · in the slice
+- statistiques et races · in the slice
+- bookmaker et cotes · in the slice
+- dettes et représailles · thin stand-in
+- carnet des races · thin stand-in
 - élevage, logement, alimentation, maladies · later
 - entraînement en duo · later
 - armes et protections · later

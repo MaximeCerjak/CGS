@@ -32,8 +32,8 @@ const PIXEL = false;
 const FONT = '"Courier New", Courier, monospace';
 const TITLE = 'ERGOTS';
 const CONTROLS = [
-  'Au poulailler : 1-3 choisir un coq · L légal · C clandestin · S soigner · Entrée : arène',
-  'En duel : 1-4 attaque · E encourager · P mettre la pression · Espace valider · A abandonner',
+  'Au poulailler : 1-3 coq · L/C circuit · S soigner · P payer le loyer · N passer un duel · R répartir · Entrée : arène',
+  'En duel : 1-4 attaque · E encourager · P mettre la pression · Espace valider · A abandonner · H historique',
   'Tout se fait aussi à la souris · M : couper le son',
 ];
 const clock = window.GAME_CLOCK || { now: () => performance.now() / 1000 }; // a check may inject one
@@ -223,81 +223,99 @@ function drawRooster(look, x, y, px, face, pose = 'normal', wounds = 0) {
 }
 
 // ---- Règles du jeu ---------------------------------------------------------------------
+const STATS = ['spd', 'def', 'atk', 'esq', 'prec', 'crit', 'int'];
+const STAT_NAMES = { hp: 'PDV', en: 'Énergie', spd: 'Vitesse', def: 'Défense', atk: 'Attaque', esq: 'Esquive', prec: 'Précision', crit: 'Critique', int: 'Intelligence' };
+const STAT_SHORT = { spd: 'Vit', def: 'Déf', atk: 'Atq', esq: 'Esq', prec: 'Préc', crit: 'Crit', int: 'Int' };
+const STYLE_NAMES = { equilibre: 'équilibré', prudent: 'prudent', brute: 'brute', vicieux: 'vicieux', fou: 'imprévisible' };
 function legalEntry(d) { return tune.legalEntryBase + tune.legalEntryPerDuel * d; }
 function legalPurse(d) { return tune.legalPurseBase + tune.legalPursePerDuel * d; }
 function entryFor(d, circuit) { return Math.round(legalEntry(d) * (circuit === 'clan' ? tune.clanEntryMult : 1)); }
-function lerpDuel(a, b, d) { return tune.duels > 1 ? a + (b - a) * (d - 1) / (tune.duels - 1) : a; }
-function clanPurseMult(d) { return lerpDuel(tune.clanPurseMultStart, tune.clanPurseMultEnd, d); }
-function clanFoeMult(d) { return lerpDuel(tune.clanFoeMultStart, tune.clanFoeMultEnd, d); }
-function purseFor(d, circuit) { return Math.round(legalPurse(d) * (circuit === 'clan' ? clanPurseMult(d) : 1)); }
-function foeStats(d, circuit) { // l'adversaire du duel d, tel qu'il se présente dans ce circuit
-  const f = R.foes[(d - 1) % R.foes.length], m = circuit === 'clan' ? clanFoeMult(d) : 1;
-  return { src: f, hp: f.hp * m, atk: f.atk * m, def: f.def * m, spd: f.spd * m };
+
+// Stats d'un de tes coqs : les plafonds de sa race, plus la redistribution choisie.
+function coqStats(c) {
+  const r = R.races[c.src.race], s = { hp: r.hp, en: r.en };
+  for (const k of STATS) s[k] = r[k] + (c.alloc[k] || 0);
+  return s;
 }
-function foeTraits(fs) {
+// L'adversaire du duel d, tel qu'il se présente dans ce circuit.
+function foeStats(d, circuit) {
+  const f = R.foes[(d - 1) % R.foes.length], r = R.races[f.race];
+  const m = f.level * (circuit === 'clan' ? tune.clanFoeMult : 1), s = { src: f };
+  for (const k of ['hp', 'en', ...STATS]) s[k] = Math.round(r[k] * m);
+  return s;
+}
+function raceTraits(s) {
   const t = [];
-  if (fs.spd >= 13) t.push('rapide'); else if (fs.spd <= 8.5) t.push('lent');
-  if (fs.atk >= 15) t.push('frappe fort');
-  if (fs.def >= 14) t.push('encaisse bien');
-  if (fs.hp >= 74) t.push('endurant');
+  if (s.spd >= 120) t.push('rapide'); else if (s.spd <= 80) t.push('lent');
+  if (s.atk >= 130) t.push('frappe fort');
+  if (s.def >= 115) t.push('encaisse bien');
+  if (s.esq >= 125) t.push('esquive beaucoup');
+  if (s.prec >= 140) t.push('très précis');
+  if (s.int >= 130) t.push('malin');
+  if (s.hp >= 350) t.push('endurant');
   return t.length ? t.join(' · ') : 'sans point fort marqué';
 }
-function matchup(c, fs) { // estimation en phrase complète, jamais de chiffres adverses
-  const s = c.src, parts = [];
-  const ds = s.spd * injuryMult(c, 'spd') - fs.spd;
-  parts.push(ds > 1.5 ? ['est plus rapide', 1] : ds < -1.5 ? ['est plus lent', -1] : ['est aussi rapide', 0]);
+function matchup(c, fs) { // phrase complète, estimation sans chiffres adverses
+  const s = coqStats(c), name = c.src.name, parts = [];
+  const sp = s.spd * injuryMult(c, 'spd') - fs.spd;
+  parts.push(sp > 12 ? ['est plus rapide', 1] : sp < -12 ? ['est plus lent', -1] : ['est aussi rapide', 0]);
   const mine = s.atk * injuryMult(c, 'atk') / fs.def, his = fs.atk / (s.def * injuryMult(c, 'def'));
   parts.push(mine > his * 1.12 ? ['frappe plus fort que lui', 1] : his > mine * 1.12 ? ['encaisse moins bien', -1] : ['leurs coups se valent', 0]);
+  if (fs.esq >= s.esq + 30) parts.push(['aura du mal à le toucher', -1]);
+  else if (s.esq >= fs.esq + 30) parts.push(['l’esquivera mieux', 1]);
   const dh = s.hp - fs.hp;
-  if (dh < -12) parts.push(['tient moins longtemps', -1]); else if (dh > 12) parts.push(['tient plus longtemps', 1]);
-  let out = `Face à ${fs.src.name}, ${s.name} ${parts[0][0]}`;
+  if (dh < -50) parts.push(['tient moins longtemps', -1]); else if (dh > 50) parts.push(['tient plus longtemps', 1]);
+  let out = `Face à ${fs.src.name}, ${name} ${parts[0][0]}`;
   for (let i = 1; i < parts.length; i++) {
     const last = i === parts.length - 1, mixed = parts[i][1] * parts[i - 1][1] < 0;
     out += (mixed ? ', mais ' : last ? ' et ' : ', ') + parts[i][0];
   }
   return out + '.';
 }
+
 // ---- Configurations d'équilibrage ----
 const PRESETS = window.PRESETS;
 const PRESET_IDS = Object.keys(PRESETS);
-function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('ergots:' + k)); localStorage.setItem('ergots:' + k, JSON.stringify(v)); } catch (e) { return null; } }
+function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('ergots2:' + k)); localStorage.setItem('ergots2:' + k, JSON.stringify(v)); } catch (e) { return null; } }
 function applyPreset(id) {
   if (!PRESETS[id]) return;
   for (const [k, v] of Object.entries(PRESETS[id].values)) if (CONFIG[k]) CONFIG[k].value = v;
-  CONFIG.preset.value = id; store('preset', id);
+  CONFIG.preset.value = id; store('preset', id); bookCache.clear();
   dispatchEvent(new CustomEvent('tune-refresh'));
 }
-addEventListener('tune', e => { if (e.detail && e.detail.key === 'preset') applyPreset(CONFIG.preset.value); });
-applyPreset(params.get('preset') || store('preset') || CONFIG.preset.value);
+addEventListener('tune', e => { if (e.detail && e.detail.key === 'preset') applyPreset(CONFIG.preset.value); else bookCache.clear(); });
 function recordRun(win, why) {
   const runs = store('runs') || [];
   runs.unshift({ preset: CONFIG.preset.value, win, why, money: state.money, path: state.path.join(' '), deaths: state.deaths.length });
   store('runs', runs.slice(0, 6));
 }
+
+// ---- Combat ----
 function injuryMult(f, stat) { let m = 1; for (const i of f.injuries) if (R.injuries[i.id].stat === stat) m *= 1 - tune.injuryMalus; return m; }
 function moraleFactor(m) { return 1 - tune.moraleSpan / 2 + tune.moraleSpan * m / 100; }
 function mood(f) { return f.morale < tune.moraleScared ? 'scared' : f.morale < tune.moraleHesitant ? 'hesitant' : 'ok'; }
-function eff(f, stat) {
+function eff(f, stat) { // une stat de combat telle qu'elle est maintenant : blessures, moral, soutien, fatigue
   let v = f[stat] * injuryMult(f, stat) * moraleFactor(f.morale) * (f.turn[stat] || 1);
-  if (stat === 'spd' && f.energy < 20) v *= 0.85;
+  if (stat === 'spd' && f.energy < f.maxEn * 0.15) v *= 0.85;
   return v;
 }
-function accOf(f, move) { // précision affichée : connue du joueur, avant l'esquive adverse
-  let a = move.acc + f.acc - (f.turn.accMalus || 0);
-  for (const i of f.injuries) if (R.injuries[i.id].stat === 'acc') a -= tune.injuryAccMalus;
+function accOf(f, move, sup) { // précision affichée : connue du joueur, avant l'esquive adverse
+  let a = move.acc + (eff(f, 'prec') - 100) * tune.accPerPrec - (f.turn.accMalus || 0);
+  if (sup === 'pressure') a -= tune.pressureAcc;
   const md = mood(f); if (md === 'scared') a -= 15; else if (md === 'hesitant') a -= 5;
   if (!move.buff && f.energy < move.cost) a -= tune.tiredAcc;
   return Math.max(5, Math.min(100, Math.round(a)));
 }
-function makeFighter(src, side, mult = 1, injuries = []) {
-  return { name: src.name, look: src.look, moves: src.moves, side, scale: src.scale || 1,
-    maxHp: Math.round(src.hp * mult), hp: Math.round(src.hp * mult), atk: src.atk * mult, def: src.def * mult, spd: src.spd * mult,
-    acc: src.acc, morale: src.morale, energy: 100, injuries, guard: false, dodge: 0, turn: {}, style: src.style };
+function dodgeOf(f) { return Math.max(0, (eff(f, 'esq') - tune.dodgeBase) * tune.dodgePerPoint) + f.dodge; }
+function makeFighter(st, src, side, injuries) {
+  return { name: src.name, look: src.look, moves: src.moves, side, scale: src.scale || 1, style: src.style,
+    maxHp: st.hp, hp: st.hp, maxEn: st.en, energy: st.en, spd: st.spd, def: st.def, atk: st.atk, esq: st.esq,
+    prec: st.prec, crit: st.crit, int: st.int, morale: src.morale, injuries, guard: false, dodge: 0, turn: {},
+    lastMove: null, seen: new Set(), raceId: src.race };
 }
 function addInjury(f, id) {
   const ids = Object.keys(R.injuries);
-  const pick = id || ids[Math.floor(rng() * ids.length)];
-  const inj = { id: pick, left: tune.injuryDuels };
+  const inj = { id: id || ids[Math.floor(rng() * ids.length)], left: tune.injuryDuels };
   f.injuries.push(inj);
   return inj;
 }
@@ -306,11 +324,11 @@ function addInjury(f, id) {
 function foeChoose(f, p) {
   const ms = f.moves.map(id => ({ id, m: R.moves[id] }));
   const dmg = ms.filter(x => !x.m.buff), buffs = ms.filter(x => x.m.buff);
-  const avg = x => (x.m.min + x.m.max) / 2 * x.m.acc / 100;
+  const avg = x => (x.m.min + x.m.max) / 2 * x.m.acc / 100 * (x.id === f.lastMove ? 0.7 : 1);
   const best = (list, key) => list.slice().sort((a, b) => key(b) - key(a))[0];
   const affordable = dmg.filter(x => x.m.cost <= f.energy);
   const pool = affordable.length ? affordable : dmg;
-  if (f.energy < 15 && buffs.length && rng() < 0.6) return buffs[0].id;
+  if (f.energy < f.maxEn * 0.15 && buffs.length && rng() < 0.6) return buffs[0].id;
   switch (f.style) {
     case 'brute': return best(pool, x => x.m.max).id;
     case 'prudent':
@@ -326,56 +344,20 @@ function foeChoose(f, p) {
       if (f.hp < f.maxHp * 0.4) return best(pool, x => x.m.max).id;
       return pool[Math.floor(rng() * pool.length)].id;
     default:
-      if (buffs.length && f.energy < 30 && rng() < 0.5) return buffs[0].id;
+      if (buffs.length && f.energy < f.maxEn * 0.25 && rng() < 0.5) return buffs[0].id;
       return rng() < 0.6 ? best(pool, avg).id : pool[Math.floor(rng() * pool.length)].id;
   }
 }
 
-// ---- État de la partie ------------------------------------------------------------------
-let scene, state;
-function reset() {
-  seed = Number(params.get('seed')) || CONFIG.seed;
-  state = {
-    t: 0, score: 0, gained: '',
-    mode: 'yard', duelNo: 1, money: tune.startMoney, rentPaid: false,
-    coqs: R.coqs.map(c => ({ src: c, dead: false, injuries: [], wins: 0 })),
-    sel: 0, circuit: 'legal', note: '', noteT: 0, duel: null, over: '', deaths: [], path: [],
-  };
-}
-function alive() { return state.coqs.filter(c => !c.dead); }
-function say(s) { state.note = s; state.noteT = 240; }
-
-function enterArena() {
-  const coq = state.coqs[state.sel];
-  if (coq.dead) { say(`${coq.src.name} est mort. Choisis un autre coq.`); sfx.buzz(); return; }
-  const entry = entryFor(state.duelNo, state.circuit);
-  if (state.money < entry) { say(`Pas assez pour la mise : il faut ${entry} crédits.`); sfx.buzz(); return; }
-  state.money -= entry;
-  const foeSrc = R.foes[(state.duelNo - 1) % R.foes.length];
-  const P = makeFighter(coq.src, 'p', 1, coq.injuries);
-  const E = makeFighter(foeSrc, 'e', state.circuit === 'clan' ? clanFoeMult(state.duelNo) : 1, []);
-  state.duel = {
-    coq, P, E, circuit: state.circuit, entry, purse: purseFor(state.duelNo, state.circuit),
-    phase: 'choose', move: 0, sup: 'none', beats: [], beatT: 0, log: [], result: null, resultText: '',
-    view: null, fx: { flash: 0, neon: 0, lungeP: 0, lungeE: 0, shakeP: 0, shakeE: 0, pops: [] }, stains: [], turnNo: 1,
-  };
-  const d = state.duel;
-  d.view = snap(d);
-  log(d, state.circuit === 'clan' ? 'Sous-sol. Pas d’arbitre, pas d’abandon. Jusqu’à la mort.' : 'Arène municipale. L’arbitre arrête le combat avant la mort.');
-  log(d, `${P.name} contre ${E.name}. Choisis une attaque et un soutien.`);
-  state.mode = 'duel';
-  events.push({ type: 'duel', no: state.duelNo, circuit: state.circuit });
-  sfx.buzz();
-}
-function log(d, s) { d.log.push(s); if (d.log.length > 4) d.log.shift(); }
+function log(d, s) { d.log.push(s); d.history.push(s); if (d.log.length > 4) d.log.shift(); }
 function snap(d) {
   const f = x => ({ hp: x.hp, energy: x.energy, morale: x.morale, injuries: x.injuries.map(i => i.id), mood: mood(x), dead: x.hp <= 0 && d.circuit === 'clan' });
   return { p: f(d.P), e: f(d.E) };
 }
-function beat(d, txt, fx) { d.beats.push({ txt, view: snap(d), fx }); }
+function beat(d, txt, fx) { if (d.sim) return; d.history.push(txt); d.beats.push({ txt, view: snap(d), fx }); }
 
 // Un tour complet : calculé d'un coup, puis joué temps par temps (beats).
-function resolveTurn(d) {
+function resolveTurn(d, pm) {
   const P = d.P, E = d.E;
   P.turn = {}; E.turn = {};
   if (d.sup === 'encourage') {
@@ -386,53 +368,62 @@ function resolveTurn(d) {
     P.turn.atk = tune.pressureAtk; P.turn.spd = tune.pressureSpd; P.turn.accMalus = tune.pressureAcc;
     beat(d, `Tu mets la pression à ${P.name} : il s’emballe.`);
   }
-  const pm = P.moves[d.move], em = foeChoose(E, P);
-  const order = eff(P, 'spd') + rng() * 2 >= eff(E, 'spd') + rng() * 2 ? [[P, E, pm], [E, P, em]] : [[E, P, em], [P, E, pm]];
+  const em = foeChoose(E, P);
+  const pFirst = eff(P, 'spd') + rng() * 6 >= eff(E, 'spd') + rng() * 6;
+  const order = pFirst ? [[P, E, pm], [E, P, em]] : [[E, P, em], [P, E, pm]];
   for (const [a, b, mid] of order) { if (d.result) break; act(d, a, b, mid); }
   if (!d.result) endOfTurn(d);
 }
 function act(d, a, b, mid) {
   const m = R.moves[mid];
   const tired = !m.buff && a.energy < m.cost;
+  const consec = a.lastMove === mid, seen = a.seen.has(mid);
+  a.lastMove = mid; a.seen.add(mid);
   a.energy = Math.max(0, a.energy - m.cost);
   if (m.buff) {
-    a.energy = Math.min(100, a.energy + (m.energyGain || 0));
+    a.energy = Math.min(a.maxEn, a.energy + (m.energyGain || 0));
     if (m.buff === 'guard') { a.guard = true; a.morale = Math.min(100, a.morale + (m.moraleGain || 0)); beat(d, `${a.name} bat des ailes et se met en garde.`, { lunge: a.side }); }
     else { a.dodge = m.dodge; beat(d, `${a.name} se fait tout petit, prêt à esquiver.`, { lunge: a.side }); }
     return;
   }
-  const spdGap = Math.max(0, Math.min(tune.speedDodgeMax, (eff(b, 'spd') - eff(a, 'spd')) * tune.speedDodgePerPoint));
-  const chance = (accOf(a, m) - b.dodge - spdGap) / 100;
-  const roll = rng();
-  if (roll >= chance) {
+  const shown = accOf(a, m);
+  const dodge = dodgeOf(b);
+  const reading = consec ? tune.intRepeatConsec * eff(b, 'int') / 100 : seen ? tune.intRepeatSeen * eff(b, 'int') / 100 : 0;
+  const roll = rng() * 100;
+  if (roll >= shown - dodge - reading) {
     a.morale = Math.max(0, a.morale - tune.moraleMissed - (m.missMorale || 0));
-    const dodged = roll < accOf(a, m) / 100;
-    beat(d, dodged ? `${a.name} tente ${m.name}... ${b.name} esquive !` : `${a.name} tente ${m.name}... et rate.`, { lunge: a.side, miss: true });
+    let why;
+    if (roll >= shown) why = 'et rate.';
+    else if (roll >= shown - dodge) why = `${b.name} esquive !`;
+    else why = `${b.name} l’a vue venir et esquive.`;
+    beat(d, `${a.name} tente ${m.name}... ${why}`, { lunge: a.side, miss: true });
+    if (roll < shown - dodge && reading && !d.sim) d.history.push(`   (lecture : ${b.name} a lu ${consec ? 'la même attaque deux fois de suite' : 'une attaque déjà vue'})`);
     return;
   }
-  let base = m.min + Math.floor(rng() * (m.max - m.min + 1));
+  const base = m.min + Math.floor(rng() * (m.max - m.min + 1));
   const atkE = eff(a, 'atk'), defE = eff(b, 'def') * (b.guard ? tune.guardDef : 1);
   let dmg = base * 2 * atkE / (atkE + defE);
   if (tired) dmg *= tune.tiredDamage;
-  const crit = rng() < tune.critChance;
+  const crit = rng() < eff(a, 'crit') * tune.critPerPoint;
   if (crit) dmg *= tune.critMult;
   dmg = Math.max(1, Math.round(dmg));
   b.guard = false;
   b.hp -= dmg;
-  if (d.circuit === 'legal') b.hp = Math.max(1, b.hp); else b.hp = Math.max(0, b.hp);
+  b.hp = d.circuit === 'legal' ? Math.max(1, b.hp) : Math.max(0, b.hp);
   const big = dmg >= b.maxHp * 0.15;
-  b.morale = Math.max(0, b.morale - (big ? tune.moraleBigHit : tune.moraleSmallHit) - (m.moraleHit || 0));
+  let moraleHit = m.moraleHit || 0, anticipated = false;
+  if (moraleHit && rng() < Math.max(0, eff(b, 'int') - tune.intFeintBase) * tune.intFeintPerPoint) { moraleHit = 0; anticipated = true; }
+  b.morale = Math.max(0, b.morale - (big ? tune.moraleBigHit : tune.moraleSmallHit) - moraleHit);
   a.morale = Math.min(100, a.morale + tune.moraleLanded);
-  let txt = `${a.name} : ${m.name} ! ${crit ? 'Coup terrible, ' : ''}${dmg} dégâts.`;
-  if (m.moraleHit) txt += ` ${b.name} se trouble.`;
+  let txt = `${a.name} : ${m.name} ! ${crit ? 'Coup critique, ' : ''}${dmg} dégâts.`;
+  if (m.moraleHit) txt += anticipated ? ` ${b.name} a anticipé la feinte.` : ` ${b.name} se trouble.`;
   if (tired) txt += ' (à bout de souffle)';
-  // blessure
   if (dmg >= b.maxHp * tune.injuryHitFrac || m.injury) {
     let ch = d.circuit === 'clan' ? tune.injuryChanceClan : tune.injuryChanceLegal;
     if (m.injury) ch *= m.injuryBoost || 1;
     if (rng() < ch) { const inj = addInjury(b, m.injury); txt += ` Blessure : ${R.injuries[inj.id].name.toLowerCase()}.`; }
   }
-  d.stains.push({ x: (b.side === 'p' ? 330 : 880) + (rng() - 0.5) * 140, y: 400 + (rng() - 0.5) * 50, r: 2 + Math.floor(rng() * 3) });
+  if (!d.sim) d.stains.push({ x: (b.side === 'p' ? 330 : 880) + (rng() - 0.5) * 140, y: 400 + (rng() - 0.5) * 50, r: 2 + Math.floor(rng() * 3) });
   beat(d, txt, { lunge: a.side, hit: b.side, dmg, crit });
   checkEnd(d, b);
 }
@@ -451,7 +442,7 @@ function checkEnd(d, b) {
 }
 function endOfTurn(d) {
   for (const f of [d.P, d.E]) {
-    f.energy = Math.min(100, f.energy + tune.energyRegen);
+    f.energy = Math.min(f.maxEn, f.energy + Math.round(f.maxEn * tune.energyRegen));
     if (f.hp < f.maxHp * 0.3) f.morale = Math.max(0, f.morale - tune.moraleLowHpDrain);
     f.dodge = 0; f.turn = {};
   }
@@ -460,30 +451,134 @@ function endOfTurn(d) {
     d.result = 'victoire'; beat(d, `L’entraîneur d’en face jette l’éponge. Victoire !`, { ref: true });
   }
   d.turnNo++;
+  if (!d.sim) d.history.push(`— Tour ${d.turnNo} —`);
+}
+
+// ---- Le bookmaker ----
+// Il simule le combat plusieurs fois, en secret, puis se trompe un peu : la cote est une
+// estimation du milieu, pas une vérité. La partie elle-même n'est pas touchée (graine sauvée).
+const bookCache = new Map();
+function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; }
+function bookOdds(c, dNo, circuit) {
+  const st = coqStats(c), fs = foeStats(dNo, circuit);
+  const key = JSON.stringify([c.src.id, st, c.injuries.map(i => i.id), dNo, circuit, CONFIG.preset.value]);
+  if (bookCache.has(key)) return bookCache.get(key);
+  const saved = seed; seed = hash(key) | 0;
+  let wins = 0;
+  for (let n = 0; n < tune.bookRuns; n++) {
+    const d = { sim: true, circuit, sup: 'none', result: null, turnNo: 1, beats: [], log: [], history: [], stains: [] };
+    d.P = makeFighter(st, { ...c.src, style: 'equilibre' }, 'p', c.injuries.map(i => ({ ...i })));
+    d.E = makeFighter(fs, fs.src, 'e', []);
+    while (!d.result && d.turnNo < 40) resolveTurn(d, foeChoose(d.P, d.E));
+    if (d.result === 'victoire') wins++;
+  }
+  const p = (wins + 1) / (tune.bookRuns + 2);
+  const noise = ((hash(key + 'book') % 1000) / 1000 * 2 - 1) * tune.bookNoise;
+  const est = Math.max(0.03, Math.min(0.97, p + noise));
+  const odds = Math.max(tune.oddsMin, Math.min(tune.oddsMax, (1 / est) * (1 - tune.bookMargin)));
+  seed = saved;
+  const r = { odds: Math.round(odds * 10) / 10, est };
+  bookCache.set(key, r);
+  return r;
+}
+function oddsText(o) { return o.odds.toFixed(1).replace('.', ','); }
+function oddsWord(o) { return o.est >= 0.6 ? 'favori' : o.est >= 0.4 ? 'combat serré' : o.est >= 0.2 ? 'outsider' : 'grand outsider'; }
+function purseFor(dNo, circuit, c) {
+  if (circuit !== 'clan') return Math.round(legalPurse(dNo));
+  return Math.round(legalPurse(dNo) * tune.clanPurseBase * bookOdds(c, dNo, 'clan').odds);
+}
+
+// ---- État de la partie ------------------------------------------------------------------
+let scene, state;
+function reset() {
+  seed = Number(params.get('seed')) || CONFIG.seed;
+  state = {
+    t: 0, score: 0, gained: '',
+    mode: 'yard', duelNo: 1, money: tune.startMoney, rentPaid: false,
+    coqs: R.coqs.map(c => ({ src: c, dead: false, injuries: [], wins: 0, alloc: {} })),
+    sel: 0, circuit: 'legal', note: '', noteT: 0, duel: null, over: '', deaths: [], path: [],
+    carnet: new Set(R.coqs.map(c => c.race)), redist: null, redistRow: 0,
+  };
+  bookCache.clear();
+}
+function alive() { return state.coqs.filter(c => !c.dead); }
+function say(s) { state.note = s; state.noteT = 300; }
+function moved(c) { let t = 0; for (const k of STATS) if ((c.alloc[k] || 0) < 0) t -= c.alloc[k]; return t; }
+function pool(c) { let t = 0; for (const k of STATS) t -= (c.alloc[k] || 0); return t; } // points retirés pas encore replacés
+
+function enterArena() {
+  const coq = state.coqs[state.sel];
+  if (coq.dead) { say(`${coq.src.name} est mort. Choisis un autre coq.`); sfx.buzz(); return; }
+  if (pool(coq) > 0) { say(`${coq.src.name} a ${pool(coq)} points à replacer (R).`); sfx.buzz(); return; }
+  const entry = entryFor(state.duelNo, state.circuit);
+  if (state.circuit === 'legal' && state.money < entry) { say(`Pas assez pour la mise légale (${entry}). Le clandestin, lui, fait crédit...`); sfx.buzz(); return; }
+  if (state.circuit === 'clan' && state.money - entry < -tune.debtLimit) { say('Même le sous-sol ne te fait plus crédit.'); sfx.buzz(); return; }
+  const odds = bookOdds(coq, state.duelNo, state.circuit);
+  const purse = purseFor(state.duelNo, state.circuit, coq);
+  state.money -= entry;
+  const fs = foeStats(state.duelNo, state.circuit);
+  state.carnet.add(fs.src.race);
+  const d = {
+    coq, circuit: state.circuit, entry, purse, odds, sup: 'none', move: 0,
+    phase: 'choose', beats: [], beatT: 0, log: [], history: ['— Tour 1 —'], result: null, view: null, showHistory: false,
+    fx: { flash: 0, neon: 0, lungeP: 0, lungeE: 0, shakeP: 0, shakeE: 0, pops: [] }, stains: [], turnNo: 1,
+  };
+  d.P = makeFighter(coqStats(coq), coq.src, 'p', coq.injuries);
+  d.E = makeFighter(fs, fs.src, 'e', []);
+  d.view = snap(d); d.initiative = initiativeOf(d);
+  state.duel = d;
+  log(d, state.circuit === 'clan' ? 'Sous-sol. Pas d’arbitre, pas d’abandon. Jusqu’à la mort.' : 'Arène municipale. L’arbitre arrête le combat avant la mort.');
+  log(d, `${d.P.name} contre ${d.E.name}. Cote ${oddsText(odds)} (${oddsWord(odds)}).`);
+  if (state.money < 0) log(d, `Tu t’es inscrit à crédit : tu dois ${-state.money} crédits au sous-sol.`);
+  state.mode = 'duel';
+  events.push({ type: 'duel', no: state.duelNo, circuit: state.circuit });
+  sfx.buzz();
 }
 function abandon(d) {
   if (d.circuit === 'clan') { log(d, 'Pas d’abandon ici. On va jusqu’au bout.'); sfx.buzz(); d.fx.neon = 20; return; }
   d.result = 'abandon'; d.beats = []; beat(d, `Tu jettes l’éponge. ${d.P.name} est sauf. La mise est perdue.`, { ref: true });
   d.phase = 'anim'; d.beatT = 0;
 }
-function finishDuel() {
-  const d = state.duel, coq = d.coq;
-  const res = d.result;
-  if (res === 'victoire') { state.money += d.purse; coq.wins++; sfx.coin(); }
-  if (res === 'mort') { coq.dead = true; state.deaths.push(`${coq.src.name} (duel ${state.duelNo})`); }
-  for (const c of state.coqs) if (c !== coq && !c.dead) { c.injuries.forEach(i => i.left--); c.injuries = c.injuries.filter(i => i.left > 0); }
-  state.path.push((d.circuit === 'clan' ? 'C' : 'L') + ':' + { victoire: 'V', arret: 'D', abandon: 'A', mort: 'M' }[res]);
-  events.push({ type: 'result', no: state.duelNo, res });
-  state.duel = null; state.mode = 'yard';
+// Après chaque duel, joué ou passé : repos, dettes, loyer, fin de tranche.
+function afterDuel(fought) {
+  for (const c of state.coqs) if (c !== fought && !c.dead) { c.injuries.forEach(i => i.left--); c.injuries = c.injuries.filter(i => i.left > 0); }
   state.duelNo++;
+  bookCache.clear();
   if (!alive().length) return gameOver('Tous tes coqs sont morts. Il n’y a plus rien à parier.');
+  if (state.money < 0) {
+    state.money = Math.round(state.money * (1 + tune.debtInterest));
+    if (state.money < -tune.debtLimit) return gameOver(`Ta dette dépasse ${tune.debtLimit} crédits. Les gars du sous-sol ont tout saisi.`);
+    if (rng() < tune.reprisalChance) {
+      const al = alive(), c = al[Math.floor(rng() * al.length)], inj = addInjury(c);
+      say(`Représailles : des types du sous-sol sont passés au poulailler. ${c.src.name} : ${R.injuries[inj.id].name.toLowerCase()}. Dette : ${-state.money}.`);
+    } else say(`Tu dois ${-state.money} crédits au sous-sol. Les intérêts courent.`);
+  }
   if (state.duelNo === tune.rentDuel && !state.rentPaid) {
     if (state.money >= tune.rent) { state.money -= tune.rent; state.rentPaid = true; say(`Loyer payé : ${tune.rent} crédits. Il te reste ${state.money}.`); sfx.coin(); }
     else return gameOver(`Le loyer tombe : ${tune.rent} crédits. Tu n’en as que ${state.money}. La famille est expulsée.`);
   }
   if (state.duelNo > tune.duels) { state.gained = 'fin'; scene = 'results'; recordRun(true, 'gagné'); sfx.win(); return; }
-  if (state.money < entryFor(state.duelNo, 'legal')) return gameOver(`À sec : même la mise légale (${entryFor(state.duelNo, 'legal')}) est trop chère.`);
   if (state.coqs[state.sel].dead) state.sel = state.coqs.indexOf(alive()[0]);
+}
+function finishDuel() {
+  const d = state.duel, coq = d.coq, res = d.result;
+  if (res === 'victoire') { state.money += d.purse; coq.wins++; sfx.coin(); }
+  if (res === 'mort') { coq.dead = true; state.deaths.push(`${coq.src.name} (duel ${state.duelNo})`); }
+  state.path.push((d.circuit === 'clan' ? 'C' : 'L') + ':' + { victoire: 'V', arret: 'D', abandon: 'A', mort: 'M' }[res]);
+  events.push({ type: 'result', no: state.duelNo, res });
+  state.duel = null; state.mode = 'yard';
+  afterDuel(coq);
+}
+function skipDuel() {
+  state.path.push('-');
+  say(`Tu passes le duel ${state.duelNo}. Tes coqs se reposent.`);
+  sfx.click();
+  afterDuel(null);
+}
+function payRent() {
+  if (state.rentPaid) return;
+  if (state.money < tune.rent) { say(`Il te manque ${tune.rent - state.money} crédits pour le loyer.`); sfx.buzz(); return; }
+  state.money -= tune.rent; state.rentPaid = true; say(`Loyer payé d’avance. Il te reste ${state.money}.`); sfx.coin();
 }
 function gameOver(why) { state.over = why; scene = 'over'; recordRun(false, why.split(/[.:]/)[0]); sfx.lose(); }
 function heal(i) {
@@ -491,7 +586,19 @@ function heal(i) {
   if (c.dead || !c.injuries.length) return;
   const cost = tune.healCost * c.injuries.length;
   if (state.money < cost) { say(`Soigner ${c.src.name} coûte ${cost} crédits. Tu n’as pas assez.`); sfx.buzz(); return; }
-  state.money -= cost; c.injuries = []; say(`${c.src.name} est soigné (${cost} crédits).`); sfx.coin();
+  state.money -= cost; c.injuries = []; bookCache.clear(); say(`${c.src.name} est soigné (${cost} crédits).`); sfx.coin();
+}
+// Redistribution : retirer des points d'une stat (dans la limite du total), les replacer ailleurs (jusqu'au plafond + dépassement).
+function shiftStat(c, k, dir) {
+  const step = tune.redistStep, a = c.alloc[k] || 0;
+  if (dir < 0) {
+    if (a > 0) c.alloc[k] = Math.max(0, a - step);
+    else { const room = tune.redistPoints - moved(c); if (room <= 0) { say(`Tu as déjà déplacé ${tune.redistPoints} points.`); return; } c.alloc[k] = a - Math.min(step, room); }
+  } else {
+    if (a < 0) c.alloc[k] = Math.min(0, a + step);
+    else { const room = Math.min(pool(c), tune.overCap - a); if (room <= 0) { say(pool(c) <= 0 ? 'Retire d’abord des points à une autre stat.' : `Pas plus de ${tune.overCap} au-dessus du plafond de la race.`); return; } c.alloc[k] = a + Math.min(step, room); }
+  }
+  bookCache.clear(); sfx.click();
 }
 
 // ---- Décors -------------------------------------------------------------------------------
@@ -534,159 +641,229 @@ function drawYardBg() {
 }
 
 // ---- Interface ------------------------------------------------------------------------------
-function bar(x, y, w, h, frac, col, back = '#2a2224') { rect(x, y, w, h, back); rect(x, y, Math.max(0, w * frac), h, col); }
+function bar(x, y, w, h, frac, col, back = '#2a2224') { rect(x, y, w, h, back); rect(x, y, Math.max(0, Math.min(1, frac)) * w, h, col); }
 function moodWord(md) { return md === 'scared' ? 'a peur' : md === 'hesitant' ? 'hésite' : 'combatif'; }
 function hpWord(f) { return f > 0.75 ? 'Frais' : f > 0.5 ? 'Touché' : f > 0.25 ? 'Bien amoché' : 'Au bord du gouffre'; }
 function poseOf(v, maxHp) { if (v.dead) return 'dead'; if (v.mood === 'scared') return 'scared'; if (v.mood === 'hesitant') return 'hesitant'; if (v.hp < maxHp * 0.4) return 'hurt'; return 'normal'; }
+function wrap(s, x, y, w, size, col, bold = false, lh = 0) {
+  ctx.font = `${bold ? 'bold ' : ''}${size}px ${FONT}`;
+  const words = s.split(' '); let line = '', yy = y;
+  for (const wd of words) { const t = line ? line + ' ' + wd : wd; if (ctx.measureText(t).width > w && line) { text(line, x, yy, size, col, 'left', bold); line = wd; yy += lh || size + 6; } else line = t; }
+  if (line) text(line, x, yy, size, col, 'left', bold);
+  return yy;
+}
+function raceLabel(id) { const r = R.races[id]; return `${r.name} · ${r.role}`; }
 
 function drawDuel() {
   const d = state.duel, v = d.view, P = d.P, E = d.E, clan = d.circuit === 'clan';
   drawArena(d);
-  // coqs
   const lp = d.fx.lungeP > 0 ? Math.sin(d.fx.lungeP / 14 * Math.PI) * 60 : 0;
   const le = d.fx.lungeE > 0 ? Math.sin(d.fx.lungeE / 14 * Math.PI) * 60 : 0;
   const sp = d.fx.shakeP > 0 ? (d.fx.shakeP % 4 < 2 ? -6 : 6) : 0, se = d.fx.shakeE > 0 ? (d.fx.shakeE % 4 < 2 ? -6 : 6) : 0;
-  drawRooster(E.look, 900 - le + se, 400, Math.round(6 * E.scale), -1, poseOf(v.e, E.maxHp), v.e.hp < E.maxHp * 0.5 ? 3 : v.e.hp < E.maxHp * 0.8 ? 1 : 0);
-  drawRooster(P.look, 340 + lp + sp, 442, 7, 1, poseOf(v.p, P.maxHp), v.p.hp < P.maxHp * 0.5 ? 3 : v.p.hp < P.maxHp * 0.8 ? 1 : 0);
+  drawRooster(E.look, 900 - le + se, 404, Math.round(6 * E.scale), -1, poseOf(v.e, E.maxHp), v.e.hp < E.maxHp * 0.5 ? 3 : v.e.hp < E.maxHp * 0.8 ? 1 : 0);
+  drawRooster(P.look, 340 + lp + sp, 444, 7, 1, poseOf(v.p, P.maxHp), v.p.hp < P.maxHp * 0.5 ? 3 : v.p.hp < P.maxHp * 0.8 ? 1 : 0);
   for (const p of d.fx.pops) text(p.s, p.x, p.y - (40 - p.t), p.big ? 40 : 30, p.col);
-  // barre du haut
+  // bandeau d'enjeu
   rect(0, 0, W, 34, 'rgba(8,6,8,0.92)');
-  text(`DUEL ${state.duelNo}/${tune.duels} · ${clan ? 'CLANDESTIN : jusqu’à la mort' : `LÉGAL : arbitre à ${Math.round(tune.refereeStop * 100)} % de vie`}`, 16, 17, 18, clan ? C.magenta : C.cyan, 'left');
-  text(`Mise ${d.entry} · Prime ${d.purse} · Caisse ${state.money} cr.`, W - 16, 17, 18, C.gold, 'right');
-  // panneau du joueur : chiffres précis
-  frameBox(16, 42, 400, 146, '#c9a23a');
-  text(`${P.name} (toi)`, 32, 62, 22, C.text, 'left');
-  text(`Vie ${v.p.hp}/${P.maxHp}`, 32, 90, 18, C.text, 'left'); bar(190, 82, 210, 14, v.p.hp / P.maxHp, v.p.hp < P.maxHp * 0.3 ? C.blood : C.ok);
-  text(`Énergie ${v.p.energy}`, 32, 114, 18, C.text, 'left'); bar(190, 106, 210, 14, v.p.energy / 100, C.gold);
-  text(`Moral ${v.p.morale} · ${moodWord(v.p.mood)}`, 32, 138, 18, v.p.mood === 'ok' ? C.text : C.warn, 'left'); bar(32, 150, 368, 8, v.p.morale / 100, '#b48cff');
-  text(v.p.injuries.length ? 'Blessures : ' + v.p.injuries.map(i => R.injuries[i].name).join(', ') : 'Aucune blessure', 32, 172, 16, v.p.injuries.length ? C.warn : C.dim, 'left');
-  // panneau de l'adversaire : lecture approximative
-  frameBox(W - 416, 42, 400, 146, clan ? C.magenta : C.cyan);
-  text(E.name, W - 400, 62, 22, C.text, 'left');
+  text(`DUEL ${state.duelNo}/${tune.duels} · TOUR ${d.turnNo} · ${clan ? 'CLANDESTIN : jusqu’à la mort' : `LÉGAL : arbitre à ${Math.round(tune.refereeStop * 100)} %`}`, 16, 17, 17, clan ? C.magenta : C.cyan, 'left');
+  text(`Cote ${oddsText(d.odds)} · Mise ${d.entry} · Prime ${d.purse} · Caisse ${state.money}`, W - 16, 17, 17, C.gold, 'right');
+  // ton coq : chiffres exacts
+  frameBox(16, 40, 400, 186, '#c9a23a');
+  text(`${P.name} (toi) · ${R.races[d.coq.src.race].name}`, 30, 58, 19, C.text, 'left');
+  text(`Vie ${v.p.hp}/${P.maxHp}`, 30, 84, 16, C.text, 'left'); bar(236, 77, 164, 13, v.p.hp / P.maxHp, v.p.hp < P.maxHp * 0.3 ? C.blood : C.ok);
+  text(`Énergie ${v.p.energy}/${P.maxEn}`, 30, 106, 16, C.text, 'left'); bar(236, 99, 164, 13, v.p.energy / P.maxEn, C.gold);
+  text(`Moral ${v.p.morale} · ${moodWord(v.p.mood)}`, 30, 128, 15, v.p.mood === 'ok' ? C.text : C.warn, 'left'); bar(236, 122, 164, 10, v.p.morale / 100, '#b48cff');
+  const sv = k => Math.round(eff(P, k)), mark = k => sv(k) < P[k] * 0.97 ? '▾' : sv(k) > P[k] * 1.03 ? '▴' : '';
+  text(STATS.slice(0, 4).map(k => `${STAT_SHORT[k]} ${sv(k)}${mark(k)}`).join('  '), 30, 152, 14, C.text, 'left', false);
+  text(STATS.slice(4).map(k => `${STAT_SHORT[k]} ${sv(k)}${mark(k)}`).join('  '), 30, 172, 14, C.text, 'left', false);
+  text(v.p.injuries.length ? 'Blessures : ' + v.p.injuries.map(i => R.injuries[i].name).join(', ') : 'Aucune blessure · ▾▴ : moral, blessures, soutien', 30, 202, 13, v.p.injuries.length ? C.warn : C.dim, 'left', false);
+  // l'adversaire : estimation
+  const known = state.carnet.has(E.raceId);
+  frameBox(W - 416, 40, 400, 186, clan ? C.magenta : C.cyan);
+  text(`${E.name} · ${R.races[E.raceId].name}`, W - 402, 58, 19, C.text, 'left');
   const segs = 5, fill = Math.max(v.e.hp > 0 ? 1 : 0, Math.ceil(v.e.hp / E.maxHp * segs));
-  for (let i = 0; i < segs; i++) rect(W - 400 + i * 46, 82, 40, 14, i < fill ? (fill <= 1 ? C.blood : '#9ab07a') : '#2a2224');
-  text('à vue d’œil', W - 160, 90, 16, C.dim, 'left');
-  text(`${hpWord(v.e.hp / E.maxHp)} · ${v.e.mood === 'scared' ? 'il a peur' : v.e.mood === 'hesitant' ? 'il hésite' : 'il a l’air combatif'}`, W - 400, 116, 18, v.e.mood === 'ok' ? C.text : C.warn, 'left');
+  for (let i = 0; i < segs; i++) rect(W - 402 + i * 44, 76, 38, 13, i < fill ? (fill <= 1 ? C.blood : '#9ab07a') : '#2a2224');
+  text('à vue d’œil', W - 170, 84, 14, C.dim, 'left', false);
+  text(`${hpWord(v.e.hp / E.maxHp)} · ${v.e.mood === 'scared' ? 'il a peur' : v.e.mood === 'hesitant' ? 'il hésite' : 'il a l’air combatif'}`, W - 402, 110, 16, v.e.mood === 'ok' ? C.text : C.warn, 'left');
   const signs = v.e.injuries.map(i => R.injuries[i].sign);
-  text(signs.length ? 'Il ' + signs.join(', ') + '.' : (v.e.energy < 30 ? 'Il souffle fort.' : 'Rien de visible.'), W - 400, 142, 16, signs.length ? C.warn : C.dim, 'left');
-  text(`Style : ${{ equilibre: 'équilibré', prudent: 'prudent', brute: 'brute', vicieux: 'vicieux', fou: 'imprévisible' }[E.style]}`, W - 400, 168, 16, C.dim, 'left');
+  text(signs.length ? 'Il ' + signs.join(', ') + '.' : (v.e.energy < E.maxEn * 0.25 ? 'Il souffle fort.' : 'Rien de visible.'), W - 402, 134, 14, signs.length ? C.warn : C.dim, 'left', false);
+  text(`Style : ${STYLE_NAMES[E.style]}`, W - 402, 158, 14, C.dim, 'left', false);
+  wrap(known ? `Carnet : ${raceTraits(R.races[E.raceId])}.` : 'Carnet : race inconnue.', W - 402, 182, 372, 13, '#d8c89a');
+  text(`Initiative : ${d.initiative}`, W - 402, 212, 13, C.dim, 'left', false);
   // journal
-  rect(0, 448, W, 272, '#120e10');
-  rect(0, 448, W, 3, clan ? C.magenta : C.cyan);
-  d.log.slice(-3).forEach((s, i, arr) => text(s, 24, 472 + i * 24, 17, i === arr.length - 1 ? C.text : C.dim, 'left', false));
+  rect(0, 452, W, 268, '#120e10');
+  rect(0, 452, W, 3, clan ? C.magenta : C.cyan);
+  d.log.slice(-3).forEach((s, i, arr) => text(s, 24, 474 + i * 22, 16, i === arr.length - 1 ? C.text : C.dim, 'left', false));
+  text('H : historique', W - 24, 474, 13, C.dim, 'right', false);
+  if (d.showHistory) return drawHistory(d);
   if (d.phase === 'over') return drawDuelResult(d);
-  // attaques
   const busy = d.phase !== 'choose';
+  // attaques
   P.moves.forEach((id, i) => {
-    const m = R.moves[id], x = 20 + (i % 2) * 360, y = 552 + Math.floor(i / 2) * 82, sel = d.move === i;
-    frameBox(x, y, 348, 72, sel ? C.gold : '#4a3e36', sel ? 'rgba(60,44,20,0.95)' : 'rgba(20,16,16,0.95)');
-    text(`${i + 1}. ${m.name}`, x + 14, y + 22, 20, busy ? C.dim : C.text, 'left');
+    const m = R.moves[id], x = 20 + (i % 2) * 340, y = 548 + Math.floor(i / 2) * 82, sel = d.move === i;
+    frameBox(x, y, 330, 72, sel ? C.gold : '#4a3e36', sel ? 'rgba(60,44,20,0.95)' : 'rgba(20,16,16,0.95)');
+    text(`${i + 1}. ${m.name}${P.lastMove === id ? ' (répétée)' : ''}`, x + 12, y + 20, 18, busy ? C.dim : C.text, 'left');
     const tired = !m.buff && P.energy < m.cost;
-    const line = m.buff ? (m.buff === 'guard' ? `Garde + énergie +${m.energyGain}` : `Esquive +${m.dodge} · énergie +${m.energyGain}`)
-      : `${m.min}-${m.max} dég · ${Math.max(5, accOf(P, m) - (d.sup === 'pressure' ? tune.pressureAcc : 0))} % · -${m.cost} én${tired ? ' !' : ''}`;
-    text(line, x + 14, y + 50, 16, tired ? C.warn : sel ? '#e0d2b0' : C.dim, 'left');
-    button(x, y, 348, 72, 'move' + i);
+    const line = m.buff ? (m.buff === 'guard' ? `Garde · énergie +${m.energyGain}` : `Esquive +${m.dodge} · énergie +${m.energyGain}`)
+      : `${m.min}-${m.max} dég · ${accOf(P, m, d.sup)} % · -${m.cost} én${tired ? ' !' : ''}`;
+    text(line, x + 12, y + 50, 15, tired ? C.warn : sel ? '#e0d2b0' : C.dim, 'left', false);
+    button(x, y, 330, 72, 'move' + i);
   });
   // soutien
-  text('Soutien', 740, 548, 16, C.dim, 'left');
-  [['encourage', 'E. Encourager', '+moral +déf'], ['pressure', 'P. Pression', '+atq +vit -préc'], ['none', 'Aucun', '']].forEach(([k, n, s], i) => {
-    const x = 740, y = 562 + i * 52, sel = d.sup === k;
-    frameBox(x, y, 250, 46, sel ? '#b48cff' : '#4a3e36', sel ? 'rgba(40,28,60,0.95)' : 'rgba(20,16,16,0.95)');
-    text(n, x + 12, y + 16, 17, C.text, 'left'); if (s) text(s, x + 12, y + 34, 14, C.dim, 'left', false);
-    button(x, y, 250, 46, 'sup-' + k);
+  text('Soutien', 708, 546, 14, C.dim, 'left', false);
+  [['encourage', 'E. Encourager', `moral +${tune.encourageMorale} · déf ×${tune.encourageDef}`], ['pressure', 'P. Pression', `atq ×${tune.pressureAtk} vit ×${tune.pressureSpd} préc -${tune.pressureAcc}`], ['none', 'Aucun', '']].forEach(([k, n, s], i) => {
+    const x = 708, y = 558 + i * 52, sel = d.sup === k;
+    frameBox(x, y, 262, 46, sel ? '#b48cff' : '#4a3e36', sel ? 'rgba(40,28,60,0.95)' : 'rgba(20,16,16,0.95)');
+    text(n, x + 10, y + 15, 16, C.text, 'left'); if (s) text(s, x + 10, y + 34, 12, C.dim, 'left', false);
+    button(x, y, 262, 46, 'sup-' + k);
   });
-  // valider et abandonner
-  frameBox(1010, 562, 250, 72, busy ? '#4a3e36' : C.ok, busy ? 'rgba(20,16,16,0.95)' : 'rgba(20,50,24,0.95)');
-  text(busy ? '...' : 'Espace : valider', 1135, 598, 20, busy ? C.dim : C.text);
-  button(1010, 562, 250, 72, 'go');
-  frameBox(1010, 644, 250, 62, clan ? '#5a2a3a' : C.warn, 'rgba(30,16,16,0.95)');
-  text(clan ? 'Abandon refusé' : 'A : abandonner', 1135, 668, 18, clan ? '#8a5a6a' : C.warn);
-  text(clan ? 'jusqu’à la mort' : 'mise perdue, coq sauf', 1135, 690, 14, C.dim, 'center', false);
-  button(1010, 644, 250, 62, 'quit');
+  // valider, abandonner, et l'enjeu de la décision
+  frameBox(984, 548, 280, 52, busy ? '#4a3e36' : C.ok, busy ? 'rgba(20,16,16,0.95)' : 'rgba(20,50,24,0.95)');
+  text(busy ? '...' : 'Espace : valider', 1124, 574, 19, busy ? C.dim : C.text);
+  button(984, 548, 280, 52, 'go');
+  frameBox(984, 606, 280, 108, clan ? '#5a2a3a' : C.warn, 'rgba(30,16,16,0.95)');
+  text(clan ? 'Abandon refusé' : 'A : abandonner', 1124, 624, 17, clan ? '#8a5a6a' : C.warn);
+  const hpPct = Math.round(v.p.hp / P.maxHp * 100);
+  const stake = clan
+    ? [`Continuer : prime ${d.purse}`, `${P.name} à ${hpPct} % : il peut mourir`, 'Abandonner : impossible']
+    : [`Abandonner : -${d.entry}, ${P.name} sauf`, `Continuer : prime ${d.purse} possible`, `${P.name} à ${hpPct} % · arbitre à ${Math.round(tune.refereeStop * 100)} %`];
+  stake.forEach((s, i) => text(s, 996, 650 + i * 19, 12, C.text, 'left', false));
+  const need = state.rentPaid ? '' : Math.max(0, tune.rent - state.money);
+  if (need) text(`Loyer : il manque ${need} (dans ${tune.rentDuel - state.duelNo} duel${tune.rentDuel - state.duelNo > 1 ? 's' : ''})`, 996, 707, 11, C.gold, 'left', false);
+  button(984, 606, 280, 108, 'quit');
+}
+function drawHistory(d) {
+  frameBox(16, 490, W - 32, 222, C.dim, 'rgba(14,11,12,0.97)', 2);
+  text('Historique du duel (H pour fermer)', 30, 506, 14, C.text, 'left');
+  const lines = d.history.slice(-9);
+  lines.forEach((s, i) => text(s, 30, 530 + i * 20, 13, s.startsWith('—') ? C.gold : s.startsWith('   ') ? '#b48cff' : C.dim, 'left', false));
+  button(16, 490, W - 32, 222, 'history');
 }
 function drawDuelResult(d) {
   const r = d.result, col = r === 'victoire' ? C.ok : r === 'mort' ? C.blood : C.warn;
   const title = { victoire: 'VICTOIRE', mort: `${d.P.name.toUpperCase()} EST MORT`, arret: 'DÉFAITE', abandon: 'ABANDON' }[r];
-  frameBox(240, 520, 800, 180, col);
-  text(title, W / 2, 556, 36, col);
-  const money = r === 'victoire' ? `+${d.purse} crédits de prime.` : `Mise perdue : ${d.entry} crédits.`;
-  const inj = d.coq.dead ? 'Il ne reviendra pas.' : d.P.injuries.length ? `${d.P.name} : ${d.P.injuries.map(i => R.injuries[i.id].name.toLowerCase()).join(', ')}.` : `${d.P.name} n’a pas de blessure.`;
-  text(money, W / 2, 604, 20, C.text);
-  text(inj, W / 2, 634, 18, d.P.injuries.length || d.coq.dead ? C.warn : C.dim);
-  text('Entrée : retour au poulailler', W / 2, 676, 18, C.dim);
-  button(240, 520, 800, 180, 'next');
+  frameBox(200, 540, 880, 172, col);
+  text(title, W / 2, 568, 32, col);
+  const money = r === 'victoire' ? `+${d.purse} crédits de prime (cote ${oddsText(d.odds)}).` : `Mise perdue : ${d.entry} crédits.`;
+  const after = state.money + (r === 'victoire' ? d.purse : 0);
+  text(`${money} Caisse : ${after}.`, W / 2, 606, 18, C.text);
+  const inj = d.coq.dead ? 'Il ne reviendra pas.' : d.P.injuries.length ? `${d.P.name} : ${d.P.injuries.map(i => R.injuries[i.id].name.toLowerCase()).join(', ')} · soins ${tune.healCost * d.P.injuries.length} ou ${tune.injuryDuels} duels de repos.` : `${d.P.name} n’a pas de blessure.`;
+  text(inj, W / 2, 636, 15, d.P.injuries.length || d.coq.dead ? C.warn : C.dim, 'center', false);
+  const rentInfo = state.rentPaid ? 'Loyer déjà payé.' : after >= tune.rent ? `De quoi payer le loyer (${tune.rent}) : fais-le au poulailler (P).` : `Loyer : il manque ${tune.rent - after}.`;
+  text(rentInfo, W / 2, 662, 15, C.gold, 'center', false);
+  text('Entrée : retour au poulailler · H : historique', W / 2, 692, 15, C.dim, 'center', false);
+  button(200, 540, 880, 172, 'next');
 }
 
 function drawYard() {
   drawYardBg();
   rect(0, 0, W, 52, 'rgba(8,6,8,0.9)');
   text(`DUEL ${state.duelNo}/${tune.duels} À VENIR`, 20, 18, 20, C.text, 'left');
-  text(`Équilibrage ${PRESETS[CONFIG.preset.value] ? PRESETS[CONFIG.preset.value].name : 'personnalisé'}`, 20, 40, 14, C.dim, 'left', false);
-  text(`Caisse : ${state.money} crédits`, W / 2 + 60, 26, 22, C.gold);
-  ctx.save(); ctx.shadowColor = C.warn; ctx.shadowBlur = 16; text('POULAILLER', W - 20, 26, 26, C.warn, 'right'); ctx.restore();
+  text(`Équilibrage : ${PRESETS[CONFIG.preset.value] ? PRESETS[CONFIG.preset.value].name : 'personnalisé'}`, 20, 40, 13, C.dim, 'left', false);
+  text(`Caisse : ${state.money} crédits`, W / 2 + 40, 26, 22, state.money < 0 ? C.blood : C.gold);
+  ctx.save(); ctx.shadowColor = C.warn; ctx.shadowBlur = 16; text('POULAILLER', W - 20, 26, 24, C.warn, 'right'); ctx.restore();
   const left = tune.rentDuel - state.duelNo;
   const rentLine = state.rentPaid ? `Loyer payé. Tiens jusqu’au duel ${tune.duels}.`
-    : `Loyer : ${tune.rent} crédits, à payer avant le duel ${tune.rentDuel}${left > 0 ? ` (encore ${left} duel${left > 1 ? 's' : ''})` : ' (maintenant)'}. Tu as ${state.money}.`;
-  frameBox(20, 62, W - 40, 40, state.rentPaid ? C.ok : C.warn, 'rgba(30,20,12,0.92)', 2);
-  text(rentLine, W / 2, 82, 19, state.rentPaid ? C.ok : C.warn);
+    : `Loyer : ${tune.rent} crédits, avant le duel ${tune.rentDuel}${left > 0 ? ` (encore ${left} duel${left > 1 ? 's' : ''})` : ' (maintenant)'}. Tu as ${state.money}.`;
+  frameBox(20, 58, W - 40, 34, state.rentPaid ? C.ok : C.warn, 'rgba(30,20,12,0.92)', 2);
+  text(rentLine, 40, 75, 16, state.rentPaid ? C.ok : C.warn, 'left');
+  if (!state.rentPaid) {
+    const can = state.money >= tune.rent;
+    frameBox(W - 250, 61, 226, 28, can ? C.ok : '#4a3e36', can ? 'rgba(20,50,24,0.95)' : 'rgba(20,16,16,0.95)', 2);
+    text('P : payer le loyer', W - 137, 75, 15, can ? C.ok : C.dim);
+    button(W - 250, 61, 226, 28, 'rent');
+  }
+  const fs = foeStats(state.duelNo, state.circuit), foeKnown = state.carnet.has(fs.src.race);
   // cartes des coqs
   state.coqs.forEach((c, i) => {
-    const x = 20 + i * 420, y = 114, w = 400, h = 300, sel = state.sel === i;
+    const x = 20 + i * 420, y = 100, w = 400, h = 356, sel = state.sel === i;
     frameBox(x, y, w, h, c.dead ? '#3a3a3a' : sel ? C.gold : '#5a4a3e', c.dead ? 'rgba(20,20,20,0.92)' : 'rgba(18,14,14,0.9)', sel ? 4 : 3);
-    drawRooster(c.src.look, x + 92, y + 190, 6, 1, c.dead ? 'dead' : c.injuries.length ? 'hurt' : 'normal', c.injuries.length);
-    text(`${i + 1}. ${c.src.name}`, x + 186, y + 30, 22, c.dead ? '#6a6a6a' : C.text, 'left');
-    if (c.dead) { text('MORT', x + 186, y + 70, 28, C.blood, 'left'); text('Il ne reviendra pas.', x + 186, y + 104, 16, C.dim, 'left', false); }
-    else {
-      const s = c.src;
-      wrap(s.blurb, x + 186, y + 56, 196, 14, C.dim);
-      [`Vie ${s.hp}`, `Attaque ${s.atk}`, `Défense ${s.def}`, `Vitesse ${s.spd}`, `Victoires ${c.wins}`].forEach((l, k) => text(l, x + 186, y + 106 + k * 22, 17, C.text, 'left'));
-      if (tune.foeInfo >= 2) wrap(matchup(c, foeStats(state.duelNo, state.circuit)), x + 16, y + 208, 368, 14, '#d8c89a');
-      if (c.injuries.length) {
-        c.injuries.forEach((inj, k) => text(`${R.injuries[inj.id].name} (repos ${inj.left})`, x + 16, y + 272 + k * 18, 13, C.warn, 'left'));
-        const cost = tune.healCost * c.injuries.length;
-        frameBox(x + 230, y + 258, 154, 36, C.warn, 'rgba(40,24,10,0.95)', 2);
-        text(`S. Soigner ${cost}`, x + 307, y + 276, 16, C.warn);
-        button(x + 230, y + 258, 154, 36, 'heal' + i);
-      } else text('En forme', x + 16, y + 280, 16, C.ok, 'left');
+    drawRooster(c.src.look, x + 90, y + 178, 5, 1, c.dead ? 'dead' : c.injuries.length ? 'hurt' : 'normal', c.injuries.length);
+    text(`${i + 1}. ${c.src.name}`, x + 186, y + 22, 20, c.dead ? '#6a6a6a' : C.text, 'left');
+    text(raceLabel(c.src.race), x + 186, y + 44, 13, C.dim, 'left', false);
+    button(x, y, w, 250, 'sel' + i);
+    if (c.dead) { text('MORT', x + 186, y + 90, 28, C.blood, 'left'); text('Il ne reviendra pas.', x + 186, y + 122, 14, C.dim, 'left', false); return; }
+    const st = coqStats(c), r = R.races[c.src.race];
+    text(`PDV ${st.hp} · Énergie ${st.en}`, x + 186, y + 68, 14, C.text, 'left');
+    STATS.forEach((k, j) => {
+      const a = c.alloc[k] || 0, col = a > 0 ? C.ok : a < 0 ? C.warn : C.text;
+      text(`${STAT_NAMES[k]}`, x + 186, y + 90 + j * 19, 13, C.dim, 'left', false);
+      text(`${st[k]}${a ? (a > 0 ? ` (+${a})` : ` (${a})`) : ''}`, x + 384, y + 90 + j * 19, 13, col, 'right');
+    });
+    text(`Total ${STATS.reduce((t, k) => t + st[k], 0)}/1050`, x + 186, y + 226, 12, C.dim, 'left', false);
+    text(`Victoires ${c.wins}`, x + 16, y + 210, 13, C.dim, 'left', false);
+    if (c.injuries.length) c.injuries.forEach((inj, k) => text(`${R.injuries[inj.id].name} (${inj.left})`, x + 16, y + 230 + k * 16, 12, C.warn, 'left', false));
+    else text('En forme', x + 16, y + 230, 13, C.ok, 'left');
+    // comparaison et cote
+    if (tune.foeInfo >= 2) {
+      if (foeKnown) wrap(matchup(c, fs), x + 16, y + 262, 368, 13, '#d8c89a', false, 17);
+      else text(`Tu ne connais pas encore les ${R.races[fs.src.race].name}.`, x + 16, y + 262, 13, C.dim, 'left', false);
     }
-    button(x, y, w, 230, 'sel' + i);
+    const o = bookOdds(c, state.duelNo, state.circuit);
+    text(`Cote ${oddsText(o)} · ${oddsWord(o)}`, x + 16, y + 330, 16, C.gold, 'left');
+    if (c.injuries.length) {
+      frameBox(x + 250, y + 314, 134, 32, C.warn, 'rgba(40,24,10,0.95)', 2);
+      text(`S. Soigner ${tune.healCost * c.injuries.length}`, x + 317, y + 330, 14, C.warn);
+      button(x + 250, y + 314, 134, 32, 'heal' + i);
+    }
   });
   // adversaire à venir
-  const foe = R.foes[(state.duelNo - 1) % R.foes.length];
-  frameBox(20, 428, 420, 280, '#5a4a3e');
-  text('Prochain adversaire', 36, 450, 16, C.dim, 'left');
-  text(foe.name, 36, 480, 22, C.text, 'left');
-  drawRooster(foe.look, 120, 680, Math.round(5 * (foe.scale || 1)), 1);
-  wrap(`« ${foe.rumor} »`, 220, 470, 210, 15, C.dim);
+  const foe = fs.src;
+  frameBox(20, 464, 420, 248, '#5a4a3e');
+  text('Prochain adversaire', 34, 480, 13, C.dim, 'left', false);
+  text(foe.name, 34, 504, 20, C.text, 'left');
+  drawRooster(foe.look, 104, 700, Math.round(4 * (foe.scale || 1)), 1);
+  wrap(`« ${foe.rumor} »`, 200, 506, 230, 13, C.dim);
   if (tune.foeInfo >= 1) {
-    const fs = foeStats(state.duelNo, state.circuit);
-    text(`Style : ${{ equilibre: 'équilibré', prudent: 'prudent', brute: 'brute', vicieux: 'vicieux', fou: 'imprévisible' }[foe.style]}`, 220, 590, 15, C.text, 'left');
-    wrap(foeTraits(fs).replace(/^./, m => m.toUpperCase()) + '.', 220, 614, 210, 15, '#d8c89a');
-    if (state.circuit === 'clan') text('Plus dur en clandestin.', 220, 682, 14, C.magenta, 'left', false);
+    text(foeKnown ? raceLabel(foe.race) : `${R.races[foe.race].name} · inconnu`, 200, 560, 14, C.text, 'left');
+    text(`Style : ${STYLE_NAMES[foe.style]}`, 200, 582, 13, C.text, 'left', false);
+    wrap(foeKnown ? raceTraits(fs).replace(/^./, m => m.toUpperCase()) + '.' : 'Pas dans ton carnet : tu découvriras son profil en le combattant.', 200, 606, 230, 13, '#d8c89a');
+    if (state.circuit === 'clan') text(`Plus dur en clandestin (+${Math.round((tune.clanFoeMult - 1) * 100)} %).`, 200, 692, 12, C.magenta, 'left', false);
   }
   // circuit
+  const selC = state.coqs[state.sel];
   ['legal', 'clan'].forEach((k, i) => {
-    const x = 460 + i * 290, y = 428, sel = state.circuit === k, col = k === 'clan' ? C.magenta : C.cyan;
-    frameBox(x, y, 276, 200, sel ? col : '#4a3e36', sel ? 'rgba(24,18,28,0.95)' : 'rgba(16,12,14,0.9)', sel ? 4 : 3);
-    text(k === 'clan' ? 'C. CLANDESTIN' : 'L. LÉGAL', x + 138, y + 26, 22, col);
-    text(`Mise ${entryFor(state.duelNo, k)} · Prime ${purseFor(state.duelNo, k)}`, x + 138, y + 62, 17, C.gold);
-    const rules = k === 'clan' ? ['Jusqu’à la mort', 'Abandon refusé', 'Adversaire plus dur'] : [`Arbitre à ${Math.round(tune.refereeStop * 100)} % de vie`, 'Abandon permis', 'Ton coq ne peut pas mourir'];
-    rules.forEach((r, j) => text(r, x + 138, y + 102 + j * 28, 16, C.text, 'center', false));
-    button(x, y, 276, 200, 'circ-' + k);
+    const x = 452 + i * 262, y = 464, sel = state.circuit === k, col = k === 'clan' ? C.magenta : C.cyan;
+    frameBox(x, y, 252, 176, sel ? col : '#4a3e36', sel ? 'rgba(24,18,28,0.95)' : 'rgba(16,12,14,0.9)', sel ? 4 : 3);
+    text(k === 'clan' ? 'C. CLANDESTIN' : 'L. LÉGAL', x + 126, y + 22, 19, col);
+    const purse = selC.dead ? '-' : purseFor(state.duelNo, k, selC);
+    text(`Mise ${entryFor(state.duelNo, k)} · Prime ${purse}`, x + 126, y + 52, 15, C.gold);
+    const rules = k === 'clan' ? ['Prime selon la cote', 'Jusqu’à la mort', 'Abandon refusé', 'Crédit possible : dettes'] : [`Arbitre à ${Math.round(tune.refereeStop * 100)} % de vie`, 'Prime fixe', 'Abandon permis', 'Pas de crédit'];
+    rules.forEach((r, j) => text(r, x + 126, y + 84 + j * 22, 14, C.text, 'center', false));
+    button(x, y, 252, 176, 'circ-' + k);
   });
-  frameBox(1040, 428, 220, 200, C.ok, 'rgba(20,46,24,0.95)', 4);
-  text('ENTRER', 1150, 500, 30, C.ok);
-  text('dans l’arène', 1150, 536, 18, C.text);
-  text('(Entrée)', 1150, 570, 16, C.dim);
-  button(1040, 428, 220, 200, 'go');
-  if (state.noteT > 0) { frameBox(460, 644, 800, 60, C.gold, 'rgba(30,24,10,0.95)', 2); text(state.note, 860, 674, 17, C.gold); }
-  else text('1-3 coq · L/C circuit · S soigner · Entrée arène', 860, 674, 16, C.dim);
+  frameBox(980, 464, 280, 112, C.ok, 'rgba(20,46,24,0.95)', 4);
+  text('ENTRER', 1120, 502, 28, C.ok);
+  text('dans l’arène (Entrée)', 1120, 538, 15, C.text);
+  button(980, 464, 280, 112, 'go');
+  frameBox(980, 584, 136, 56, '#5a4a3e', 'rgba(20,16,16,0.95)', 2);
+  text('N : passer', 1048, 604, 14, C.text); text('repos', 1048, 624, 12, C.dim, 'center', false);
+  button(980, 584, 136, 56, 'skip');
+  frameBox(1124, 584, 136, 56, '#5a4a3e', 'rgba(20,16,16,0.95)', 2);
+  text('R : répartir', 1192, 604, 14, C.text); text('les points', 1192, 624, 12, C.dim, 'center', false);
+  button(1124, 584, 136, 56, 'redist');
+  if (state.noteT > 0) { frameBox(452, 648, 808, 64, C.gold, 'rgba(30,24,10,0.95)', 2); wrap(state.note, 466, 668, 780, 14, C.gold, true, 20); }
+  else text('1-3 coq · L/C circuit · S soigner · P loyer · N passer · R répartir · Entrée arène', 856, 680, 13, C.dim, 'center', false);
+  if (state.redist !== null) drawRedist();
 }
-function wrap(s, x, y, w, size, col) {
-  ctx.font = `${size}px ${FONT}`;
-  const words = s.split(' '); let line = '', yy = y;
-  for (const wd of words) { const t = line ? line + ' ' + wd : wd; if (ctx.measureText(t).width > w && line) { text(line, x, yy, size, col, 'left', false); line = wd; yy += size + 6; } else line = t; }
-  if (line) text(line, x, yy, size, col, 'left', false);
+function drawRedist() {
+  const c = state.coqs[state.redist], st = coqStats(c), r = R.races[c.src.race];
+  rect(0, 0, W, H, 'rgba(6,4,6,0.78)');
+  frameBox(300, 80, 680, 560, C.gold, 'rgba(18,14,14,0.98)', 4);
+  text(`Répartir les points de ${c.src.name} · ${raceLabel(c.src.race)}`, W / 2, 112, 20, C.gold);
+  text(`Déplacés ${moved(c)}/${tune.redistPoints} · à replacer ${pool(c)} · plafond de la race +${tune.overCap} au maximum`, W / 2, 142, 14, C.text, 'center', false);
+  STATS.forEach((k, j) => {
+    const y = 186 + j * 52, a = c.alloc[k] || 0, sel = state.redistRow === j;
+    if (sel) rect(320, y - 22, 640, 44, 'rgba(242,193,78,0.12)');
+    text(STAT_NAMES[k], 340, y, 17, sel ? C.gold : C.text, 'left');
+    text(`plafond ${r[k]}`, 520, y, 13, C.dim, 'left', false);
+    bar(620, y - 7, 200, 14, st[k] / 171, a > 0 ? C.ok : a < 0 ? C.warn : '#9ab07a');
+    rect(620 + 200 * r[k] / 171, y - 11, 2, 22, C.text);
+    text(`${st[k]}${a ? (a > 0 ? ` (+${a})` : ` (${a})`) : ''}`, 940, y, 16, a > 0 ? C.ok : a < 0 ? C.warn : C.text, 'right');
+    button(320, y - 22, 640, 44, 'row' + j);
+  });
+  text('↑↓ choisir · ← retirer · → ajouter · Entrée ou Échap : fermer', W / 2, 560, 15, C.dim, 'center', false);
+  text(pool(c) > 0 ? `Il reste ${pool(c)} points à replacer avant le prochain duel.` : 'Le bookmaker recalcule la cote à chaque changement.', W / 2, 600, 15, pool(c) > 0 ? C.warn : C.dim, 'center', false);
 }
 
 // ---- Scènes ----------------------------------------------------------------------------------
@@ -700,7 +877,7 @@ const scenes = {
         const x = 110 + (i % 6) * 210, y = 300 + Math.floor(i / 6) * 330;
         drawRooster(c.look, x, y, 6, 1);
         text(c.name, x, y + 26, 18, C.text);
-        text(kind, x, y + 50, 14, C.dim, 'center', false);
+        text(`${kind} · ${R.races[c.race].name}`, x, y + 50, 14, C.dim, 'center', false);
       });
     },
   },
@@ -720,7 +897,7 @@ const scenes = {
       ctx.save(); ctx.shadowColor = C.magenta; ctx.shadowBlur = Math.floor(state.t * 8) % 13 === 0 ? 0 : 30;
       text(TITLE, W / 2, 70, 84, C.magenta); ctx.restore();
       text('Des coqs, un loyer, et la mort au bout de chaque pari.', W / 2, 132, 20, C.text);
-      text('Configuration d\u2019équilibrage (← →)', W / 2, 172, 17, C.gold);
+      text('Configuration d’équilibrage (← →)', W / 2, 172, 17, C.gold);
       PRESET_IDS.forEach((id, i) => {
         const x = 40 + i * 305, y = 188, sel = CONFIG.preset.value === id, p = PRESETS[id];
         frameBox(x, y, 290, 116, sel ? C.gold : '#4a3e36', sel ? 'rgba(50,38,16,0.95)' : 'rgba(16,12,14,0.92)', sel ? 4 : 2);
@@ -732,12 +909,12 @@ const scenes = {
       const runs = store('runs') || [];
       frameBox(250, 418, 780, 210, '#4a3e36', 'rgba(14,11,12,0.92)', 2);
       text('Dernières parties', 270, 438, 16, C.text, 'left');
-      if (!runs.length) text('Aucune pour l\u2019instant.', 270, 470, 15, C.dim, 'left', false);
+      if (!runs.length) text('Aucune pour l’instant.', 270, 470, 15, C.dim, 'left', false);
       runs.forEach((r, i) => {
         text(`${r.win ? 'GAGNÉ' : 'PERDU'} · ${r.preset} · ${r.money} cr. · ${r.deaths} mort${r.deaths > 1 ? 's' : ''}`, 270, 468 + i * 26, 14, r.win ? C.ok : C.warn, 'left');
         text(r.path, 640, 468 + i * 26, 14, C.dim, 'left', false);
       });
-      text('L/C : circuit · V victoire, D arrêt, A abandon, M mort', 640, 612, 12, C.dim, 'center', false);
+      text('L/C : circuit · V victoire, D arrêt, A abandon, M mort, - duel passé', 640, 612, 12, C.dim, 'center', false);
       drawRooster(R.coqs[0].look, 120, 640, 6, 1);
       drawRooster(R.foes[2].look, 1160, 640, 6, -1);
       frameBox(440, 646, 400, 56, C.cyan, 'rgba(10,30,34,0.95)', 3);
@@ -762,7 +939,7 @@ const scenes = {
       text('FIN DE LA PARTIE', W / 2, 200, 56, C.blood);
       wrap(state.over, 240, 290, 800, 24, C.text);
       if (state.deaths.length) text(`Morts : ${state.deaths.join(', ')}`, W / 2, 420, 20, C.warn);
-      text(`Duels joués : ${state.duelNo - 1} · ${state.path.join(' ')}`, W / 2, 460, 20, C.dim);
+      text(`Duels : ${state.duelNo - 1} · ${state.path.join(' ')}`, W / 2, 460, 20, C.dim);
       text(`Équilibrage : ${PRESETS[CONFIG.preset.value] ? PRESETS[CONFIG.preset.value].name : 'personnalisé'}`, W / 2, 496, 18, C.dim);
       text('R ou Entrée : recommencer · Échap : écran titre', W / 2, 580, 24, C.cyan);
     },
@@ -772,7 +949,7 @@ const scenes = {
     draw() {
       clear('#0e120e');
       text('TU AS TENU', W / 2, 150, 56, C.ok);
-      text(`${tune.duels} duels joués · loyer payé · caisse finale ${state.money} crédits`, W / 2, 230, 22, C.text);
+      text(`${tune.duels} duels · loyer payé · caisse finale ${state.money} crédits`, W / 2, 230, 22, C.text);
       const alv = alive();
       text(`Survivants : ${alv.map(c => c.src.name).join(', ')}`, W / 2, 280, 22, C.text);
       text(state.deaths.length ? `Morts : ${state.deaths.join(', ')}` : 'Aucun coq mort.', W / 2, 320, 20, state.deaths.length ? C.warn : C.dim);
@@ -784,17 +961,37 @@ const scenes = {
 };
 
 function yardUpdate(act) {
+  if (state.redist !== null) {
+    const c = state.coqs[state.redist];
+    if (pressed('ArrowUp')) state.redistRow = (state.redistRow + STATS.length - 1) % STATS.length;
+    if (pressed('ArrowDown')) state.redistRow = (state.redistRow + 1) % STATS.length;
+    if (act && act.startsWith('row')) state.redistRow = Number(act.slice(3));
+    if (pressed('ArrowLeft')) shiftStat(c, STATS[state.redistRow], -1);
+    if (pressed('ArrowRight')) shiftStat(c, STATS[state.redistRow], 1);
+    if (pressed('Escape') || pressed('Enter') || pressed('KeyR')) state.redist = null;
+    return;
+  }
   for (let i = 0; i < 3; i++) if (pressed('Digit' + (i + 1)) || act === 'sel' + i) { state.sel = i; sfx.click(); }
   if (pressed('KeyL') || act === 'circ-legal') { state.circuit = 'legal'; sfx.click(); }
   if (pressed('KeyC') || act === 'circ-clan') { state.circuit = 'clan'; sfx.click(); }
   if (pressed('KeyS')) heal(state.sel);
   for (let i = 0; i < 3; i++) if (act === 'heal' + i) heal(i);
+  if (pressed('KeyP') || act === 'rent') payRent();
+  if (pressed('KeyN') || act === 'skip') return skipDuel();
+  if (pressed('KeyR') || act === 'redist') { if (!state.coqs[state.sel].dead) { state.redist = state.sel; state.redistRow = 0; sfx.click(); } }
   if (pressed('Enter') || pressed('Space') || act === 'go') enterArena();
+}
+function initiativeOf(d) {
+  const p = eff(d.P, 'spd') * (d.sup === 'pressure' ? tune.pressureSpd : 1), e = eff(d.E, 'spd'), gap = p - e;
+  return gap > 8 ? 'tu frappes en premier' : gap < -8 ? 'il frappe en premier' : 'incertaine';
 }
 function duelUpdate(act) {
   const d = state.duel, fx = d.fx;
   for (const k of ['flash', 'neon', 'lungeP', 'lungeE', 'shakeP', 'shakeE']) if (fx[k] > 0) fx[k]--;
   fx.pops = fx.pops.filter(p => --p.t > 0);
+  d.initiative = initiativeOf(d);
+  if (pressed('KeyH') || act === 'history') { d.showHistory = !d.showHistory; return; }
+  if (d.showHistory) { if (pressed('Escape')) d.showHistory = false; return; }
   if (d.phase === 'choose') {
     for (let i = 0; i < 4; i++) if (pressed('Digit' + (i + 1)) || act === 'move' + i) { d.move = i; sfx.click(); }
     if (pressed('KeyE') || act === 'sup-encourage') { d.sup = d.sup === 'encourage' ? 'none' : 'encourage'; sfx.click(); }
@@ -802,7 +999,7 @@ function duelUpdate(act) {
     if (act === 'sup-none') d.sup = 'none';
     if (pressed('KeyA') || act === 'quit') return abandon(d);
     if (pressed('Space') || pressed('Enter') || act === 'go') {
-      d.beats = []; resolveTurn(d); d.phase = 'anim'; d.beatT = 0; d.sup = 'none';
+      d.beats = []; resolveTurn(d, d.P.moves[d.move]); d.phase = 'anim'; d.beatT = 0; d.sup = 'none';
     }
   } else if (d.phase === 'anim') {
     if (d.beatT <= 0) {
@@ -812,7 +1009,8 @@ function duelUpdate(act) {
         if (d.result === 'victoire') sfx.win(); else if (d.result) sfx.lose();
         return;
       }
-      log(d, b.txt); d.view = b.view;
+      d.log.push(b.txt); if (d.log.length > 4) d.log.shift();
+      d.view = b.view;
       const f = b.fx || {};
       if (f.lunge === 'p') fx.lungeP = 14; if (f.lunge === 'e') fx.lungeE = 14;
       if (f.hit) {
@@ -825,7 +1023,7 @@ function duelUpdate(act) {
       if (f.ref) sfx.buzz();
       d.beatT = tune.beatSteps;
     } else d.beatT--;
-    if (pressed('Space') || pressed('Enter') || act === 'go') d.beatT = 0; // accélérer
+    if (pressed('Space') || pressed('Enter') || act === 'go') d.beatT = 0;
   } else if (d.phase === 'over') {
     if (pressed('Enter') || pressed('Space') || act === 'next') finishDuel();
   }
@@ -861,6 +1059,7 @@ window.game = {
   },
 };
 
+applyPreset(params.get('preset') || store('preset') || CONFIG.preset.value);
 reset();
 scene = params.get('scene') || 'title';
 last = clock.now();
