@@ -25,3 +25,49 @@ framework:
 # here. `/project-settings --local <key>=<value>` writes there; `/project-settings <key>=<value>`
 # edits this file. See `.claude/docs/config-resolution.md` for the full
 # precedence order.
+
+platform:
+  multiplayer: false
+  online: false
+  targets: [PC, Web]
+  primary_input: "Keyboard/Mouse"
+  gamepad_support: "Partial"
+  touch_support: "Partial"
+
+engine:
+  name: "Godot"
+  version: "4.7"
+  language: "GDScript"
+  rendering: "Compatibility"
+  physics: "Godot Physics 2D"
+
+specialists:
+  code: "godot-gdscript-specialist"
+  shader: "godot-shader-specialist"
+  ui: "godot-specialist"
+  additional: ["godot-gdextension-specialist"]
+
+naming:
+  classes: PascalCase
+  variables: snake_case
+  constants: SCREAMING_SNAKE
+  signals: past_tense
+  files: snake_case
+  scenes: snake_case
+
+testing:
+  framework: gdunit4
+
+performance:
+  target_framerate: 60
+  frame_budget_ms: 16.67
+  draw_call_limit: null
+  memory_ceiling_mb: null
+
+# TODO: godot is not on PATH here (Godot 4.7 not yet installed, Windows) — set the
+# editor's full path via /project-settings once installed. build: no export preset yet.
+commands:
+  build: "[TO BE CONFIGURED]"
+  test: "godot --headless -s -d --remote-debug tcp://127.0.0.1:0 res://addons/gdUnit4/bin/GdUnitCmdTool.gd -a res://tests --ignoreHeadlessMode"
+  run: "godot --path . --windowed --resolution 1280x720"
+  smoke: "godot --headless --quit-after 5"
