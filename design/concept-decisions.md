@@ -1,6 +1,6 @@
 # Combats de coqs : décisions de conception
 
-*Notes de discussion, ni brief ni GDD. Dernière mise à jour : 2026-11-22.*
+*Notes de discussion, ni brief ni GDD. Dernière mise à jour : 2026-11-24.*
 
 ## Idée de départ
 - Futur dystopique : la plupart des animaux sauvages ont disparu, il reste surtout des animaux d'élevage.
@@ -27,6 +27,7 @@
   - deux règles de combat : légales (un arbitre arrête le combat avant la mort, abandon toujours permis, gains plus faibles) et clandestines (combat jusqu'à la mort, abandon refusé ou très coûteux, gains bien plus élevés).
 - **Hors prototype** : horloge, famille, voyages, élevage, entraînement, équipement.
 - Les systèmes dont dépend le combat (argent, stats) sont simulés au strict minimum.
+- **Évolution du prototype** (branche `prototype/ergots`) : après les tests, il a intégré le système de statistiques et les races, la redistribution des points, le carnet, le bookmaker, les dettes, les contres par nature d'attaque, les attaques de race et les règles contre la frustration. L'auteur juge la dernière version « beaucoup mieux ».
 - Une fois le prototype validé, on développe un MVP plus complet, à faire tester par des connaissances. Il devra être compréhensible sans explication (interface claire, tutoriel minimal).
 
 ## Organisation des branches
@@ -144,6 +145,67 @@ Retour de l'auteur après le prototype : les 5 stats du prototype (vie, énergie
 - Un carnet de notes (ou une tablette) répertorie les caractéristiques des coqs combattus et de ceux dont on a entendu parler.
 - On ne rencontre pas les coqs seulement en les combattant : on peut aussi aller les voir se battre dans des tournois.
 
+**L'équilibre entre les races** (décidé après les tests du prototype)
+- Les races n'ont pas à être égales : certaines peuvent tout simplement avoir des avantages, et les races rares être plus fortes (exemple : le Shamo).
+- Ce qui compte, c'est qu'un coq plus faible puisse battre un coq plus fort dans les bonnes conditions. Cela passe par les contres entre natures d'attaque, la redistribution des stats, les attaques propres aux races, et plus tard l'équipement : de quoi rendre un coq plutôt faible tenace face à certaines races.
+- Écarté : un budget égal pour toutes les races (où les PDV et l'énergie coûteraient des points).
+
+### Contres par nature d'attaque
+Le système de contres retenu passe par les stats, sans tableau de types. Chaque attaque a une nature, et chaque nature bute sur une stat différente :
+- **vive** (exemples : Coup de bec, Feinte) : difficile à esquiver (l'esquive adverse ne compte qu'à moitié), mais la défense adverse en absorbe une part fixe à chaque coup ;
+- **précise** (exemples : Coup d'ergot, Viser l'œil) : la précision de l'attaquant compte double et la défense n'en absorbe que la moitié, mais un coq malin (intelligence élevée) la lit et l'esquive plus facilement ;
+- **lourde** (exemples : Bond griffu, Ruée aveugle) : elle traverse une bonne partie de la défense, mais un coq plus rapide que l'attaquant l'esquive plus facilement.
+
+Les contres par la préparation (natures d'attaque et résistances des corps, puis équipement) viendront plus tard.
+
+### Attaques communes et attaques de race
+- Toutes les races partagent des attaques communes : Coup de bec, Coup d'ergot, Bond griffu, Feinte, Ruée aveugle, Viser l'œil, Battre des ailes, Esquive basse.
+- Chaque race a en plus ses attaques propres. Celles du prototype :
+
+| Race | Attaque propre | Effet |
+|---|---|---|
+| Leghorn | Rafale de becs | vive, trois coups à la suite |
+| Brahma | Écrasement | lourde, ignore la garde et l'esquive préparée |
+| Sebright | Coup sournois | vive, traverse la défense, trouble le moral |
+| Houdan | Riposte | précise, dégâts bien plus forts si l'adversaire vient de rater |
+| Phénix | Pas de danse | grosse esquive, l'adversaire perd du moral |
+| Shamo | Assaut du combattant | lourde, puissante et assez précise |
+
+- D'autres attaques propres aux races viendront s'ajouter.
+
+### Rythme du combat et frustration
+Retour de l'auteur : rater plusieurs dizaines d'attaques d'affilée rend le jeu énervant et donne envie d'arrêter. Règles retenues dans le prototype :
+- une chance de toucher plancher (35 %), quelles que soient l'esquive et la lecture adverses ;
+- chaque échec d'affilée augmente la chance de toucher (+12 % par raté) : l'attaquant « trouve enfin l'ouverture » ;
+- au-delà d'un certain nombre de tours (12), les coqs s'épuisent : chaque tour ajoute 10 % aux dégâts, pour que le combat se conclue ;
+- un réglage global des dégâts fixe la durée des combats. Cible obtenue : 5 à 13 tours en légal, 7 à 17 en clandestin.
+
+### L'IA des adversaires
+- Chaque adversaire a un style : équilibré, prudent, brute, vicieux, imprévisible.
+- Elle apprend de ses erreurs, sans que ce soit systématique : quand une attaque a raté ou a été absorbée deux ou trois fois de suite (une brute s'entête plus longtemps), elle en change, la plupart du temps. Elle peut donc encore répéter, ce qu'un joueur attentif peut exploiter.
+
+### Indices dans le journal de combat
+Le jeu explique ses règles par le récit du combat, sans tutoriel. Exemples :
+- répétition : « Lame utilise Coup d'ergot, encore. Trop prévisible : il rate son coup. » ; « Nugget a déjà vu ce Coup d'ergot et l'évite. » ;
+- contres : « Le coup glisse sur sa défense. » ; « trop lent : il l'évite sans peine » ; « a lu le geste et l'évite » ;
+- rythme : « trouve enfin l'ouverture » ; « Les deux coqs s'épuisent : chaque coup porte davantage. »
+
+### Le bookmaker
+- Avant chaque duel, le bookmaker de l'arène affiche une cote pour chacun de tes coqs face à l'adversaire. Elle tient compte du circuit, des blessures et de la répartition des points.
+- La cote est une estimation du milieu, pas une vérité : elle se trompe un peu, dans un sens comme dans l'autre. Elle est calculée comme si ton coq était mené par un entraîneur compétent.
+- En clandestin, la prime dépend de la cote : envoyer un outsider rapporte davantage. En légal, la prime est fixe.
+- Il pourra plus tard être possible de repérer une cote mal fixée grâce à l'expérience d'entraîneur et au carnet.
+
+### Argent, dettes et loyer (dans le prototype)
+- En clandestin, on peut s'inscrire sans avoir la mise : on s'endette. La dette grossit d'un duel à l'autre, et des représailles sont possibles (un coq blessé au poulailler). Au-delà d'une certaine dette, les malfrats saisissent tout. En légal, pas de crédit.
+- Le loyer peut être payé dès qu'on a la somme.
+- On peut passer un duel : on ne gagne rien, mais les coqs se reposent et leurs blessures guérissent.
+- Pour le prototype, l'argent après le loyer n'a pas d'importance : pas de deuxième échéance.
+
+### Le duel final du prototype
+- En légal : un coq d'une race rare et naturelle, le Shamo (Kaiser).
+- En clandestin : le même coq, modifié (bec et ergots d'acier), conformément à la règle qui réserve les modifications au circuit clandestin.
+
 ### Soutien de l'entraîneur
 - En plus de l'ordre donné au coq, l'entraîneur peut le soutenir pendant le même tour. Le soutien ne remplace pas l'ordre.
 - Le soutien agit sur l'état d'esprit, qui agit sur les stats. Exemples à affiner : mettre la pression (plus de vitesse et d'attaque, beaucoup moins de précision) ; encourager (plus de défense et d'état d'esprit).
@@ -232,11 +294,15 @@ Trois modes, choisis en début de partie et expliqués au joueur :
 - Le scénario sans embranchements de la première phase.
 - Redistribution des stats : 50 ou 75 points ? Une stat peut-elle descendre sans limite sous le plafond de sa race (une limite de −21 évoquée) ? La répartition est-elle définitive, ou peut-on la refaire (contre de l'argent ou du temps d'entraînement) ?
 - La parade par l'intelligence, qui réduisait les dégâts avec la défense, est-elle abandonnée ?
-- Les PDV et l'énergie sont hors du budget des 7 stats : comment éviter qu'une race cumule beaucoup de PDV et un gros total (exemples : Brahma, Houdan) ?
-- Combien d'attaques un coq connaît-il, et combien en emporte-t-il en duel ?
-- Le système de statistiques complet sera-t-il testé dans le prototype ou directement dans le MVP ?
+- Combien d'attaques un coq connaît-il, et combien en emporte-t-il en duel ? (Prototype : 4 par coq, dont son attaque de race.)
+- L'équilibre des races reste à travailler : dans le prototype, le Brahma est trop fort et le Sebright trop faible.
+- Le plancher de chance de toucher réduit la frustration mais affaiblit les races qui comptent sur l'esquive (Sebright, Phénix, Leghorn) : comment redonner de la valeur à l'esquive sans faire revenir les longues séries de ratés ?
 
 ## Observations de Claude (non validées)
+- Une race plus forte pourrait se payer ailleurs : plus rare et plus chère, ce qui rejoint les coqs rares qu'on va chercher en voyage.
+- Une piste pour l'esquive : esquiver pourrait aussi fatiguer l'attaquant (lui coûter de l'énergie), au lieu de seulement le faire rater.
+- Les simulations du prototype (environ 60 000 combats par itération) montrent que choisir le bon coq pour chaque adversaire décide souvent du combat : le carnet et la cote prennent alors toute leur valeur.
+- La cote du bookmaker colle au héros parieur et au thème du rapport au risque.
 - Avec le carnet, la lecture de l'adversaire se fait en deux temps : la race donne le profil général, le duel révèle le build de ce coq-là.
 - Aller observer des tournois pour remplir le carnet coûte du temps de calendrier : l'information devient une ressource, et on retrouve le dilemme central.
 - Races, stats de base et carnet rapprochent fortement le jeu de la structure de Pokémon. Ce qui le distingue : un carnet imparfait, rempli en observant, fait d'estimations plutôt que de chiffres exacts.
