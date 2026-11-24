@@ -108,6 +108,7 @@ La première vraie menace arrive au duel 3 ou 4 : un adversaire plus fort, qui b
 
 ## Keep
 - « je trouve ça vraiment chouette » ; « le concept a du potentiel et on peut vite se prendre au jeu » *(you said)*
+- « Je viens de faire mon test et sincèrement c'est beaucoup mieux » (après l'iteration 5 : contres, attaques de race, combats moins frustrants) *(you said)*
 
 ## Avoid
 - Une pâle copie de Pokémon : ni ses noms, ni ses créatures, ni son interface.
