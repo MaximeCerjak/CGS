@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Engine Version** | Godot 4.7 |
-| **Installed at pin time** | NOT DETERMINED — 2026-11-24 : Godot n'est pas installé sur le poste Windows de l'auteur ni dans le conteneur cloud ; la 4.7 (4.7.2) est à installer. |
+| **Installed at pin time** | NOT DETERMINED — 2026-11-24 : l'auteur a installé Godot sur son poste Windows ; version exacte et chemin à confirmer (pas de Godot dans le conteneur cloud). |
 | **Release Date** | June 2026 (latest patch: 4.7.2, August 2026) |
 | **Project Pinned** | 2026-10-17 |
 | **Last Docs Verified** | 2026-10-21 (Windows driver default and Compositor, against Godot source); 2026-10-17 (release timeline and 4.7 changes); 2026-02-12 (4.4-4.6 content) |
