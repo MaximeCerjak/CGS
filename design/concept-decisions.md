@@ -30,6 +30,55 @@
 - **Évolution du prototype** (branche `prototype/ergots`) : après les tests, il a intégré le système de statistiques et les races, la redistribution des points, le carnet, le bookmaker, les dettes, les contres par nature d'attaque, les attaques de race et les règles contre la frustration. L'auteur juge la dernière version « beaucoup mieux ».
 - Une fois le prototype validé, on développe un MVP plus complet, à faire tester par des connaissances. Il devra être compréhensible sans explication (interface claire, tutoriel minimal).
 
+## MVP : le prologue
+**Rôle** : faire comprendre l'intérêt du jeu, ses objectifs et son univers, sans entrer en profondeur dans la gestion de l'écurie. Le MVP présente les mécaniques principales et aborde les différents systèmes.
+
+**Ce que le joueur doit comprendre** : il existe des combats de coqs légaux et des combats clandestins ; on vit dans un monde d'inégalités ; il existe des organisations de malfrats ; on peut rester honnête ou tremper dans de mauvaises affaires.
+
+**Le récit**
+- Présenter la situation familiale et chaque membre de la famille, la situation du héros, la ville et ses habitants, et l'initiateur aux combats de coqs (le demi-frère, dont la trahison n'est pas encore révélée).
+- Le joueur est mené vers un premier tournoi. Le MVP s'arrête juste avant ce tournoi.
+
+**L'objectif du joueur** : gagner sa place au premier tournoi, ce qui demande deux conditions :
+- réunir la mise d'inscription ;
+- avoir remporté 3 combats sur le circuit légal.
+
+Le clandestin peut fournir l'argent, jamais les victoires légales.
+
+**Les finances**
+- Au début, le héros ne paie pas le loyer. Il enchaîne petits boulots, paris et jeux d'argent, et participe un peu aux finances de la famille, mais sa mère ne peut pas vraiment compter sur lui. Ses responsabilités financières grandiront au fil du jeu complet.
+- Dans le prologue, la mère lui demande de faire un effort : elle n'aura pas les moyens de payer le loyer ce mois-ci, et il faut au moins qu'il participe. C'est le premier dilemme, en concurrence avec la mise du tournoi.
+- Les dépenses du poulailler (nourriture, soins, équipement) font partie des finances.
+- Les dettes en clandestin restent possibles.
+
+**Les activités**
+- **Combats** : le système complet du prototype (contres, attaques de race, soutien, abandon, bookmaker, mort définitive en clandestin).
+- **Paris sur les combats des autres** : le défaut du héros rendu jouable. Ils utilisent le bookmaker et ses cotes, et regarder un combat remplit le carnet.
+- **Petits boulots** : narratifs, avec un choix, et ils prennent du temps.
+- **Missions clandestines** :
+  - un **combat truqué** : perdre exprès contre de l'argent, au risque de blesser son coq ;
+  - une **livraison** réalisée pour de vrai : aller chercher un colis et le livrer en se déplaçant dans la ville.
+- **Découvrir le circuit clandestin** et pouvoir s'y essayer.
+
+**Les systèmes, et leur profondeur dans le MVP**
+
+| Système | Dans le MVP |
+|---|---|
+| Combat | complet, comme dans le prototype |
+| Élevage | simplifié : nourrir son poulailler ; un ou deux coqs aux stats de base, prêts à combattre dès le début. Pas de croissance des poussins ni d'initiation |
+| Équipement | oui, avec une boutique |
+| Carnet | oui, rempli en combattant et en regardant des combats |
+| Réputation | dans les deux milieux, avec un minimum de portes qui s'ouvrent et se ferment |
+| Finances | voir plus haut |
+| Temps | un calendrier simple (des jours qui passent) : les petits boulots en consomment, la demande de la mère a une échéance, le tournoi a une date. Pas l'horloge complète |
+| Ville | explorable, pour rencontrer ses habitants et réaliser la livraison (à confirmer : déplacement du héros en vue de dessus) |
+| Sauvegarde | une sauvegarde simple, puisque les testeurs jouent seuls |
+| Prise en main | un début guidé et des aides, puisque le MVP doit se comprendre sans explication |
+
+**Hors MVP** : croissance des poussins et initiation, entraînement en duo, horloge complète, dilemmes familiaux à délai (au-delà de la demande de la mère), trahison et révélation du demi-frère, fins, prothèses et blessures définitives, trois modes de sauvegarde.
+
+**Technologie** : l'auteur penche pour un moteur de jeu plutôt que le navigateur, pour poser des bases solides. Choix du moteur à faire avant de construire le MVP.
+
 ## Organisation des branches
 - Le prototype est développé sur une branche dédiée.
 - Le MVP est développé sur une branche dédiée.
