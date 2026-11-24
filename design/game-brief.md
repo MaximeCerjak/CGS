@@ -24,6 +24,8 @@
 >
 > After play: « je figerais aussi la difficulté accru des adversaires en clandestin à 15% [...] en clandestins on peut avoir des dettes et donc des représailles. Je pense même que 10 ou 12% de difficulté supplémentaires pourrait suffire. Donc intègre tout ça et le nouveau système de stat aussi. J'aime particulièrement le bookmaker »
 
+> After play: « j'ai gagner toutes les autres parties en clandestin, meme quand gros-paul était grand outsider avec une cote à 5 j'ai gagné [...] ce qui est un défaut c'est que j'ai tué mon adversaire en 3 coups seulement sans être inquiété » ; « Fait les corrections 1, 2 et 3, l'argent on s'en fou pour le prototype. Ensuite [...] je te laisserai la responsabilités de tester le plus de combinaisons de combat possible pour évaluer l'équilibrage »
+
 **Pitch:** Dans un bidonville du futur, tu fais combattre tes coqs pour payer le loyer, et à chaque tour tu choisis jusqu'où risquer leur vie.
 
 **Genre:** combat de créatures au tour par tour, centré sur la prise de risque (sans capture de créatures).

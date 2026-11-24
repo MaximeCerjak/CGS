@@ -21,7 +21,7 @@ window.CONFIG = {
   legalPurseBase: { value: 40, min: 0, max: 200, step: 5 },      // prime légale = base + duel × parDuel
   legalPursePerDuel: { value: 14, min: 0, max: 60, step: 1 },
   clanEntryMult: { value: 3, min: 1, max: 6, step: 0.5 },        // mise clandestine = mise légale × mult
-  clanPurseBase: { value: 2, min: 0.3, max: 4, step: 0.05 },     // prime clandestine = prime légale × base × cote de ton coq
+  clanPurseBase: { value: 1.2, min: 0.3, max: 4, step: 0.05 },     // prime clandestine = prime légale × base × cote de ton coq
   healCost: { value: 25, min: 0, max: 100, step: 5 },            // soin d'une blessure (crédits)
 
   // --- Dettes (clandestin seulement : on peut s'y inscrire sans avoir la mise) ---
@@ -30,11 +30,11 @@ window.CONFIG = {
   reprisalChance: { value: 0.6, min: 0, max: 1, step: 0.05 },    // après chaque duel endetté : chance de représailles (un coq blessé)
 
   // --- Bookmaker ---
-  bookRuns: { value: 40, min: 10, max: 200, step: 10 },          // combats simulés pour fixer une cote
+  bookRuns: { value: 80, min: 10, max: 300, step: 10 },          // combats simulés pour fixer une cote
   bookNoise: { value: 0.08, min: 0, max: 0.3, step: 0.01 },      // le bookmaker se trompe : écart maximal sur la chance estimée
   bookMargin: { value: 0.1, min: 0, max: 0.4, step: 0.01 },      // la part que garde le bookmaker sur la cote
   oddsMin: { value: 1.15, min: 1.01, max: 2, step: 0.05 },
-  oddsMax: { value: 5, min: 2, max: 20, step: 0.5 },
+  oddsMax: { value: 4, min: 2, max: 20, step: 0.5 },
 
   // --- Règles des deux circuits ---
   refereeStop: { value: 0.2, min: 0.05, max: 0.5, step: 0.05 },  // légal : l'arbitre arrête à cette part de vie
@@ -102,13 +102,13 @@ window.ROSTER = {
     phenix:   { name: 'Phénix',   role: 'danseur',     hp: 265, en: 200, spd: 125, def: 70,  atk: 90,  esq: 150, prec: 130, crit: 115, int: 120 },
   },
   moves: {
-    bec:    { name: 'Coup de bec',      min: 30, max: 45,  acc: 95, cost: 12 },
-    ergot:  { name: "Coup d'ergot",     min: 45, max: 70,  acc: 85, cost: 21 },
-    bond:   { name: 'Bond griffu',      min: 70, max: 110, acc: 62, cost: 33 },
-    feinte: { name: 'Feinte',           min: 15, max: 25,  acc: 92, cost: 15, moraleHit: 15 },
+    bec:    { name: 'Coup de bec',      min: 15, max: 23,  acc: 95, cost: 12 },
+    ergot:  { name: "Coup d'ergot",     min: 23, max: 35,  acc: 85, cost: 21 },
+    bond:   { name: 'Bond griffu',      min: 35, max: 55, acc: 62, cost: 33 },
+    feinte: { name: 'Feinte',           min: 8, max: 13,  acc: 92, cost: 15, moraleHit: 15 },
     ailes:  { name: 'Battre des ailes', buff: 'guard', acc: 100, cost: 0, energyGain: 45, moraleGain: 5 },
-    ruee:   { name: 'Ruée aveugle',     min: 90, max: 140, acc: 50, cost: 42, missMorale: 5 },
-    oeil:   { name: "Viser l'œil",      min: 25, max: 40,  acc: 78, cost: 18, injury: 'oeil', injuryBoost: 2 },
+    ruee:   { name: 'Ruée aveugle',     min: 45, max: 70, acc: 50, cost: 42, missMorale: 5 },
+    oeil:   { name: "Viser l'œil",      min: 13, max: 20,  acc: 78, cost: 18, injury: 'oeil', injuryBoost: 2 },
     garde:  { name: 'Esquive basse',    buff: 'dodge', acc: 100, cost: 0, energyGain: 22, dodge: 30 },
   },
   injuries: {
@@ -160,11 +160,11 @@ window.ROSTER = {
 // les autres restent comme dans CONFIG. Choisie à l'écran titre (← →) ou dans le panneau.
 window.PRESETS = {
   R:   { name: 'Recommandé', desc: 'Clandestin +12 %, légal viable, prime clandestine selon la cote.',
-    values: { clanFoeMult: 1.12, legalPurseBase: 40, legalPursePerDuel: 14, clanPurseBase: 2, foeInfo: 2 } },
+    values: { clanFoeMult: 1.12, legalPurseBase: 40, legalPursePerDuel: 14, clanPurseBase: 1.2, foeInfo: 2 } },
   C10: { name: 'Clandestin +10 %', desc: 'Comme Recommandé, avec des adversaires clandestins un peu moins durs.',
-    values: { clanFoeMult: 1.1, legalPurseBase: 40, legalPursePerDuel: 14, clanPurseBase: 2, foeInfo: 2 } },
+    values: { clanFoeMult: 1.1, legalPurseBase: 40, legalPursePerDuel: 14, clanPurseBase: 1.2, foeInfo: 2 } },
   C15: { name: 'Clandestin +15 %', desc: 'Comme Recommandé, avec des adversaires clandestins un peu plus durs.',
-    values: { clanFoeMult: 1.15, legalPurseBase: 40, legalPursePerDuel: 14, clanPurseBase: 2, foeInfo: 2 } },
+    values: { clanFoeMult: 1.15, legalPurseBase: 40, legalPursePerDuel: 14, clanPurseBase: 1.2, foeInfo: 2 } },
   LS:  { name: 'Légal serré', desc: 'Primes légales du premier prototype : le loyer pousse vers le clandestin.',
-    values: { clanFoeMult: 1.12, legalPurseBase: 30, legalPursePerDuel: 12, clanPurseBase: 2, foeInfo: 2 } },
+    values: { clanFoeMult: 1.12, legalPurseBase: 30, legalPursePerDuel: 12, clanPurseBase: 1.2, foeInfo: 2 } },
 };

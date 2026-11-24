@@ -469,7 +469,7 @@ function bookOdds(c, dNo, circuit) {
     const d = { sim: true, circuit, sup: 'none', result: null, turnNo: 1, beats: [], log: [], history: [], stains: [] };
     d.P = makeFighter(st, { ...c.src, style: 'equilibre' }, 'p', c.injuries.map(i => ({ ...i })));
     d.E = makeFighter(fs, fs.src, 'e', []);
-    while (!d.result && d.turnNo < 40) resolveTurn(d, foeChoose(d.P, d.E));
+    while (!d.result && d.turnNo < 80) { const c2 = smartChoose(d.P, d.E); d.sup = c2.sup; resolveTurn(d, c2.move); }
     if (d.result === 'victoire') wins++;
   }
   const p = (wins + 1) / (tune.bookRuns + 2);
@@ -480,6 +480,29 @@ function bookOdds(c, dNo, circuit) {
   const r = { odds: Math.round(odds * 10) / 10, est };
   bookCache.set(key, r);
   return r;
+}
+// Le joueur que simule le bookmaker : compétent. Il compare l'espérance de dégâts de chaque
+// attaque (précision, esquive et lecture adverses, fatigue), avec ou sans pression, et se
+// remet en garde quand il manque d'énergie ou de moral.
+function smartChoose(P, E) {
+  let best = null;
+  for (const id of P.moves) {
+    const m = R.moves[id];
+    if (m.buff) continue;
+    const reading = P.lastMove === id ? tune.intRepeatConsec * eff(E, 'int') / 100 : P.seen.has(id) ? tune.intRepeatSeen * eff(E, 'int') / 100 : 0;
+    for (const sup of ['none', 'pressure']) {
+      const hit = Math.max(0, accOf(P, m, sup) - dodgeOf(E) - reading) / 100;
+      const atk = eff(P, 'atk') * (sup === 'pressure' ? tune.pressureAtk : 1), def = eff(E, 'def') * (E.guard ? tune.guardDef : 1);
+      let ev = (m.min + m.max) / 2 * 2 * atk / (atk + def) * hit * (1 + eff(P, 'crit') * tune.critPerPoint * (tune.critMult - 1));
+      if (P.energy < m.cost) ev *= tune.tiredDamage;
+      if (m.moraleHit) ev *= 1.15;
+      if (!best || ev > best.ev) best = { move: id, sup, ev };
+    }
+  }
+  const buff = P.moves.find(id => R.moves[id].buff);
+  if (buff && P.energy < P.maxEn * 0.15) return { move: buff, sup: 'none' };
+  if (P.morale < tune.moraleHesitant && best.sup === 'none') best.sup = 'encourage';
+  return best || { move: P.moves[0], sup: 'none' };
 }
 function oddsText(o) { return o.odds.toFixed(1).replace('.', ','); }
 function oddsWord(o) { return o.est >= 0.6 ? 'favori' : o.est >= 0.4 ? 'combat serré' : o.est >= 0.2 ? 'outsider' : 'grand outsider'; }
@@ -688,8 +711,8 @@ function drawDuel() {
   const signs = v.e.injuries.map(i => R.injuries[i].sign);
   text(signs.length ? 'Il ' + signs.join(', ') + '.' : (v.e.energy < E.maxEn * 0.25 ? 'Il souffle fort.' : 'Rien de visible.'), W - 402, 134, 14, signs.length ? C.warn : C.dim, 'left', false);
   text(`Style : ${STYLE_NAMES[E.style]}`, W - 402, 158, 14, C.dim, 'left', false);
-  wrap(known ? `Carnet : ${raceTraits(R.races[E.raceId])}.` : 'Carnet : race inconnue.', W - 402, 182, 372, 13, '#d8c89a');
-  text(`Initiative : ${d.initiative}`, W - 402, 212, 13, C.dim, 'left', false);
+  wrap(known ? `Carnet : ${raceTraits(R.races[E.raceId])}.` : 'Carnet : race inconnue.', W - 402, 180, 376, 12, '#d8c89a', false, 15);
+  text(`Initiative : ${d.initiative}`, W - 402, 214, 12, C.dim, 'left', false);
   // journal
   rect(0, 452, W, 268, '#120e10');
   rect(0, 452, W, 3, clan ? C.magenta : C.cyan);
